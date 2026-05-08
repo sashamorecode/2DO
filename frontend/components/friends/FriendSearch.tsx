@@ -71,5 +71,5 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   sentBtn: { backgroundColor: colors.surfaceAlt },
-  addText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  addText: { color: '#FFF5FB', fontWeight: '700', fontSize: 13 },
 });
