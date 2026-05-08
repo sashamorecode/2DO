@@ -1,8 +1,7 @@
 import React from 'react';
-import { StyleSheet, Alert } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { colors } from '../../../constants/colors';
 import { Screen } from '../../../components/ui/Screen';
 import { TodoForm } from '../../../components/todo/TodoForm';
 import { todosApi, CreateTodoInput } from '../../../services/todos.api';
@@ -12,9 +11,10 @@ export default function NewTodoScreen() {
   const qc = useQueryClient();
 
   async function handleSubmit(data: CreateTodoInput) {
-    await todosApi.create(data);
+    const created = await todosApi.create(data);
+    qc.setQueryData(['todo', created.id], created);
     qc.invalidateQueries({ queryKey: ['todos'] });
-    router.back();
+    router.replace('/(app)');
   }
 
   return (

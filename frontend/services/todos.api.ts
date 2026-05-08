@@ -8,6 +8,8 @@ export interface Todo {
   description: string;
   priority: Priority;
   deadline: string | null;
+  planned_at: string | null;
+  is_private: boolean;
   status: 'pending' | 'completed';
   completed_at: string | null;
   created_at: string;
@@ -19,11 +21,16 @@ export interface CreateTodoInput {
   description?: string;
   priority: Priority;
   deadline?: string | null;
+  planned_at?: string | null;
+  is_private?: boolean;
 }
 
 export const todosApi = {
   list: (params?: { status?: string; priority?: string }) =>
     api.get<Todo[]>('/todos', { params }).then((r) => r.data),
+
+  get: (id: string) =>
+    api.get<Todo>(`/todos/${id}`).then((r) => r.data),
 
   create: (data: CreateTodoInput) =>
     api.post<Todo>('/todos', data).then((r) => r.data),
@@ -36,4 +43,7 @@ export const todosApi = {
 
   complete: (id: string) =>
     api.patch<Todo>(`/todos/${id}/complete`).then((r) => r.data),
+
+  reopen: (id: string) =>
+    api.patch<Todo>(`/todos/${id}/reopen`).then((r) => r.data),
 };

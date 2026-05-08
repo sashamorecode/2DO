@@ -14,21 +14,23 @@ export default function EditTodoScreen() {
 
   const { data: todo, isLoading } = useQuery({
     queryKey: ['todo', id],
-    queryFn: () => todosApi.list().then((todos) => todos.find((t) => t.id === id)),
+    queryFn: () => todosApi.get(id!),
+    enabled: !!id,
   });
 
   const deleteMutation = useMutation({
     mutationFn: () => todosApi.delete(id!),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['todos'] });
-      router.back();
+      router.replace('/(app)');
     },
   });
 
   async function handleSubmit(data: CreateTodoInput) {
     await todosApi.update(id!, data);
     qc.invalidateQueries({ queryKey: ['todos'] });
-    router.back();
+    qc.invalidateQueries({ queryKey: ['todo', id] });
+    router.replace('/(app)');
   }
 
   function confirmDelete() {
@@ -43,9 +45,8 @@ export default function EditTodoScreen() {
   return (
     <Screen style={styles.screen}>
       <View style={styles.header}>
-        <Text style={styles.title}>Edit Task</Text>
         <TouchableOpacity onPress={confirmDelete} style={styles.deleteBtn}>
-          <Text style={styles.deleteText}>Delete</Text>
+          <Text style={styles.deleteText}>Delete task</Text>
         </TouchableOpacity>
       </View>
       <TodoForm
@@ -54,6 +55,10 @@ export default function EditTodoScreen() {
           description: todo.description,
           priority: todo.priority,
           deadline: todo.deadline ? new Date(todo.deadline) : null,
+          deadlineHasTime: hasMeaningfulTime(todo.deadline),
+          plannedAt: todo.planned_at ? new Date(todo.planned_at) : null,
+          plannedHasTime: hasMeaningfulTime(todo.planned_at),
+          isPrivate: todo.is_private,
         }}
         onSubmit={handleSubmit}
         submitLabel="Save Changes"
@@ -62,10 +67,23 @@ export default function EditTodoScreen() {
   );
 }
 
+function hasMeaningfulTime(iso: string | null): boolean {
+  if (!iso) return false;
+  const d = new Date(iso);
+  // Treat 09:00 (planned default) and 23:59 (deadline default) as "no time set"
+  const h = d.getHours();
+  const m = d.getMinutes();
+  return !((h === 9 && m === 0) || (h === 23 && m === 59));
+}
+
 const styles = StyleSheet.create({
-  screen: { paddingHorizontal: 16, paddingTop: 16 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  title: { fontSize: 22, fontWeight: '800', color: colors.text },
-  deleteBtn: { paddingHorizontal: 12, paddingVertical: 6 },
-  deleteText: { color: colors.error, fontWeight: '700' },
+  screen: { paddingHorizontal: 16, paddingTop: 12 },
+  header: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 12 },
+  deleteBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: colors.error + '22',
+  },
+  deleteText: { color: colors.error, fontWeight: '700', fontSize: 13 },
 });

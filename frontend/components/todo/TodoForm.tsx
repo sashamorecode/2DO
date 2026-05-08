@@ -1,11 +1,20 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  Platform,
+  Switch,
+} from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { Calendar as CalendarIcon, Clock as ClockIcon, X, Lock } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
-import { Priority, PRIORITIES } from '../../constants/priorities';
+import { Priority, PRIORITIES, PRIORITY_ORDER } from '../../constants/priorities';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { CreateTodoInput } from '../../services/todos.api';
@@ -15,20 +24,33 @@ const schema = z.object({
   description: z.string().optional(),
   priority: z.enum(['A', 'B', 'C']),
   deadline: z.date().optional().nullable(),
+  deadlineHasTime: z.boolean(),
+  plannedAt: z.date().optional().nullable(),
+  plannedHasTime: z.boolean(),
+  isPrivate: z.boolean(),
 });
 
 type FormData = z.infer<typeof schema>;
 
+export interface TodoFormInitial {
+  title?: string;
+  description?: string;
+  priority?: Priority;
+  deadline?: Date | null;
+  deadlineHasTime?: boolean;
+  plannedAt?: Date | null;
+  plannedHasTime?: boolean;
+  isPrivate?: boolean;
+}
+
 interface Props {
-  initialValues?: Partial<FormData>;
+  initialValues?: TodoFormInitial;
   onSubmit: (data: CreateTodoInput) => Promise<void>;
   submitLabel?: string;
   loading?: boolean;
 }
 
 export function TodoForm({ initialValues, onSubmit, submitLabel = 'Save', loading }: Props) {
-  const [showDatePicker, setShowDatePicker] = useState(false);
-
   const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -36,17 +58,21 @@ export function TodoForm({ initialValues, onSubmit, submitLabel = 'Save', loadin
       description: initialValues?.description ?? '',
       priority: initialValues?.priority ?? 'B',
       deadline: initialValues?.deadline ?? null,
+      deadlineHasTime: initialValues?.deadlineHasTime ?? false,
+      plannedAt: initialValues?.plannedAt ?? null,
+      plannedHasTime: initialValues?.plannedHasTime ?? false,
+      isPrivate: initialValues?.isPrivate ?? false,
     },
   });
-
-  const deadline = watch('deadline');
 
   async function submit(data: FormData) {
     await onSubmit({
       title: data.title,
       description: data.description,
       priority: data.priority,
-      deadline: data.deadline ? data.deadline.toISOString() : null,
+      deadline: data.deadline ? toISO(data.deadline, data.deadlineHasTime, 'end') : null,
+      planned_at: data.plannedAt ? toISO(data.plannedAt, data.plannedHasTime, 'morning') : null,
+      is_private: data.isPrivate,
     });
   }
 
@@ -82,23 +108,28 @@ export function TodoForm({ initialValues, onSubmit, submitLabel = 'Save', loadin
         )}
       />
 
-      <Text style={styles.label}>Priority</Text>
+      <Text style={styles.label}>Importance</Text>
       <Controller
         control={control}
         name="priority"
         render={({ field: { onChange, value } }) => (
           <View style={styles.priorityRow}>
-            {(['A', 'B', 'C'] as Priority[]).map((p) => {
-              const { color, description } = PRIORITIES[p];
+            {PRIORITY_ORDER.map((p) => {
+              const { color, label, description } = PRIORITIES[p];
               const selected = value === p;
               return (
                 <TouchableOpacity
                   key={p}
-                  style={[styles.priorityBtn, { borderColor: color, backgroundColor: selected ? color + '33' : 'transparent' }]}
+                  style={[
+                    styles.priorityBtn,
+                    { borderColor: color, backgroundColor: selected ? color + '33' : 'transparent' },
+                  ]}
                   onPress={() => onChange(p)}
                 >
-                  <Text style={[styles.priorityLabel, { color }]}>{p}</Text>
-                  <Text style={[styles.priorityDesc, { color: selected ? color : colors.textMuted }]}>{description}</Text>
+                  <Text style={[styles.priorityLabel, { color }]}>{label}</Text>
+                  <Text style={[styles.priorityDesc, { color: selected ? color : colors.textMuted }]}>
+                    {description}
+                  </Text>
                 </TouchableOpacity>
               );
             })}
@@ -106,35 +137,42 @@ export function TodoForm({ initialValues, onSubmit, submitLabel = 'Save', loadin
         )}
       />
 
-      <Text style={styles.label}>Deadline (optional)</Text>
-      <TouchableOpacity
-        style={styles.dateBtn}
-        onPress={() => setShowDatePicker(true)}
-      >
-        <Text style={deadline ? styles.dateText : styles.datePlaceholder}>
-          {deadline ? deadline.toLocaleString() : 'Set a deadline...'}
-        </Text>
-        {deadline && (
-          <TouchableOpacity onPress={() => setValue('deadline', null)}>
-            <Text style={styles.clearDate}>✕</Text>
-          </TouchableOpacity>
-        )}
-      </TouchableOpacity>
+      <DateTimeField
+        label="Due date (optional)"
+        date={watch('deadline')}
+        hasTime={watch('deadlineHasTime')}
+        onDate={(d) => setValue('deadline', d)}
+        onHasTime={(b) => setValue('deadlineHasTime', b)}
+      />
 
-      {showDatePicker && (
-        <DateTimePicker
-          value={deadline ?? new Date()}
-          mode="datetime"
-          display={Platform.OS === 'ios' ? 'inline' : 'default'}
-          minimumDate={new Date()}
-          onChange={(_, date) => {
-            setShowDatePicker(Platform.OS === 'ios');
-            if (date) setValue('deadline', date);
-            else setShowDatePicker(false);
-          }}
-          themeVariant="dark"
-        />
-      )}
+      <DateTimeField
+        label="Do date (optional)"
+        date={watch('plannedAt')}
+        hasTime={watch('plannedHasTime')}
+        onDate={(d) => setValue('plannedAt', d)}
+        onHasTime={(b) => setValue('plannedHasTime', b)}
+      />
+
+      <Controller
+        control={control}
+        name="isPrivate"
+        render={({ field: { onChange, value } }) => (
+          <View style={styles.privateRow}>
+            <Lock size={20} color={value ? colors.accentLight : colors.textDim} strokeWidth={2.2} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.privateLabel}>Private</Text>
+              <Text style={styles.privateDesc}>
+                Hide from friends. They won't see this task or be notified about it.
+              </Text>
+            </View>
+            <Switch
+              value={value}
+              onValueChange={onChange}
+              trackColor={{ false: colors.border, true: colors.accent }}
+            />
+          </View>
+        )}
+      />
 
       <Button
         title={submitLabel}
@@ -144,6 +182,110 @@ export function TodoForm({ initialValues, onSubmit, submitLabel = 'Save', loadin
       />
     </ScrollView>
   );
+}
+
+function DateTimeField({
+  label,
+  date,
+  hasTime,
+  onDate,
+  onHasTime,
+}: {
+  label: string;
+  date: Date | null | undefined;
+  hasTime: boolean;
+  onDate: (d: Date | null) => void;
+  onHasTime: (b: boolean) => void;
+}) {
+  const [showDate, setShowDate] = useState(false);
+  const [showTime, setShowTime] = useState(false);
+
+  const dateLabel = date
+    ? date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+    : 'Pick a date…';
+  const timeLabel = date && hasTime
+    ? date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+    : 'No time set';
+
+  return (
+    <View style={{ marginBottom: 18 }}>
+      <Text style={styles.label}>{label}</Text>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        <TouchableOpacity style={[styles.dateBtn, { flex: 1 }]} onPress={() => setShowDate(true)}>
+          <CalendarIcon size={16} color={date ? colors.accentLight : colors.textDim} strokeWidth={2.2} />
+          <Text style={date ? styles.dateText : styles.datePlaceholder}>{dateLabel}</Text>
+        </TouchableOpacity>
+        {date && (
+          <TouchableOpacity onPress={() => { onDate(null); onHasTime(false); }} style={styles.clearBtn}>
+            <X size={16} color={colors.error} strokeWidth={2.4} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {date && (
+        <View style={styles.timeRow}>
+          <Text style={styles.timeLabel}>Add time</Text>
+          <Switch
+            value={hasTime}
+            onValueChange={(b) => {
+              onHasTime(b);
+              if (b) setShowTime(true);
+            }}
+            trackColor={{ false: colors.border, true: colors.accent }}
+          />
+          {hasTime && (
+            <TouchableOpacity style={styles.timeBtn} onPress={() => setShowTime(true)}>
+              <ClockIcon size={14} color={colors.accentLight} strokeWidth={2.2} />
+              <Text style={styles.dateText}>{timeLabel}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {showDate && (
+        <DateTimePicker
+          value={date ?? new Date()}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'inline' : 'default'}
+          onChange={(_, picked) => {
+            setShowDate(Platform.OS === 'ios');
+            if (picked) {
+              const next = new Date(picked);
+              if (date && hasTime) {
+                next.setHours(date.getHours(), date.getMinutes(), 0, 0);
+              }
+              onDate(next);
+            }
+          }}
+          themeVariant="dark"
+        />
+      )}
+      {showTime && date && (
+        <DateTimePicker
+          value={date}
+          mode="time"
+          display={Platform.OS === 'ios' ? 'inline' : 'default'}
+          onChange={(_, picked) => {
+            setShowTime(Platform.OS === 'ios');
+            if (picked) {
+              const next = new Date(date);
+              next.setHours(picked.getHours(), picked.getMinutes(), 0, 0);
+              onDate(next);
+            }
+          }}
+          themeVariant="dark"
+        />
+      )}
+    </View>
+  );
+}
+
+function toISO(d: Date, hasTime: boolean, defaultTime: 'morning' | 'end'): string {
+  if (hasTime) return d.toISOString();
+  const out = new Date(d);
+  if (defaultTime === 'end') out.setHours(23, 59, 0, 0);
+  else out.setHours(9, 0, 0, 0);
+  return out.toISOString();
 }
 
 const styles = StyleSheet.create({
@@ -158,22 +300,62 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 2,
   },
-  priorityLabel: { fontWeight: '900', fontSize: 18 },
+  priorityLabel: { fontWeight: '900', fontSize: 14 },
   priorityDesc: { fontSize: 10, textAlign: 'center' },
   dateBtn: {
     backgroundColor: colors.surface,
-    borderRadius: 10,
+    borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    gap: 10,
   },
   dateText: { color: colors.text, fontSize: 15 },
   datePlaceholder: { color: colors.textMuted, fontSize: 15 },
-  clearDate: { color: colors.error, fontSize: 16, fontWeight: '700' },
-  submitBtn: { marginTop: 8 },
+  clearBtn: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  timeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 12,
+  },
+  timeLabel: { color: colors.textMuted, fontSize: 13 },
+  timeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  privateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: 10,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginTop: 4,
+    marginBottom: 16,
+    gap: 12,
+  },
+  privateLabel: { color: colors.text, fontSize: 15, fontWeight: '700', marginBottom: 2 },
+  privateDesc: { color: colors.textMuted, fontSize: 12 },
+  submitBtn: { marginTop: 8, marginBottom: 32 },
 });
