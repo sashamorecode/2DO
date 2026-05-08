@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -14,6 +15,10 @@ type Config struct {
 	Port                  string
 	WorkerIntervalMinutes int
 	ExpoAccessToken       string
+
+	GoogleClientIDs []string
+	ResendAPIKey    string
+	EmailFrom       string
 }
 
 func Load() *Config {
@@ -28,12 +33,25 @@ func Load() *Config {
 		}
 	}
 
+	var googleClientIDs []string
+	if v := os.Getenv("GOOGLE_CLIENT_IDS"); v != "" {
+		for _, id := range strings.Split(v, ",") {
+			id = strings.TrimSpace(id)
+			if id != "" {
+				googleClientIDs = append(googleClientIDs, id)
+			}
+		}
+	}
+
 	return &Config{
-		DatabaseURL:           getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/twodo?sslmode=disable"),
+		DatabaseURL:           getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:9432/twodo?sslmode=disable"),
 		JWTSecret:             getEnv("JWT_SECRET", "change-me-in-production"),
-		Port:                  getEnv("PORT", "8080"),
+		Port:                  getEnv("PORT", "9000"),
 		WorkerIntervalMinutes: workerInterval,
 		ExpoAccessToken:       os.Getenv("EXPO_ACCESS_TOKEN"),
+		GoogleClientIDs:       googleClientIDs,
+		ResendAPIKey:          os.Getenv("RESEND_API_KEY"),
+		EmailFrom:             getEnv("EMAIL_FROM", "2Do <onboarding@resend.dev>"),
 	}
 }
 

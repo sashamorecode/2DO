@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: twodo
     ports:
-      - "5432:5432"
+      - "9432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -22,7 +22,7 @@ services:
       dockerfile: Dockerfile.dev
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "9000:9000"
     env_file:
       - ./backend/.env
     environment:

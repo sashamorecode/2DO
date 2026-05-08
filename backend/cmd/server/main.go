@@ -21,7 +21,7 @@ func main() {
 
 	database := db.Connect(cfg.DatabaseURL)
 
-	r := router.Setup(database, cfg.JWTSecret)
+	r := router.Setup(database, cfg)
 
 	notifSvc := services.NewNotificationService(cfg.ExpoAccessToken)
 	checker := worker.NewDeadlineChecker(database, notifSvc)

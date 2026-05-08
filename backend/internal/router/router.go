@@ -2,16 +2,21 @@ package router
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/sasha/2do-backend/internal/config"
 	"github.com/sasha/2do-backend/internal/handlers"
 	"github.com/sasha/2do-backend/internal/middleware"
+	"github.com/sasha/2do-backend/internal/services"
 	"gorm.io/gorm"
 )
 
-func Setup(db *gorm.DB, jwtSecret string) *gin.Engine {
+func Setup(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	r := gin.Default()
 	r.Use(middleware.CORS())
 
-	authH := handlers.NewAuthHandler(db, jwtSecret)
+	emailSvc := services.NewEmailService(cfg.ResendAPIKey, cfg.EmailFrom)
+	rateLimiter := services.NewEmailRateLimiter()
+
+	authH := handlers.NewAuthHandler(db, cfg.JWTSecret, cfg.GoogleClientIDs, emailSvc, rateLimiter)
 	userH := handlers.NewUserHandler(db)
 	todoH := handlers.NewTodoHandler(db)
 	friendH := handlers.NewFriendHandler(db)
@@ -23,14 +28,16 @@ func Setup(db *gorm.DB, jwtSecret string) *gin.Engine {
 
 	// Public
 	auth := v1.Group("/auth")
-	auth.POST("/register", authH.Register)
-	auth.POST("/login", authH.Login)
+	auth.POST("/google", authH.Google)
+	auth.POST("/email/start", authH.EmailStart)
+	auth.POST("/email/verify", authH.EmailVerify)
 
 	// Protected
 	protected := v1.Group("")
-	protected.Use(middleware.Auth(jwtSecret))
+	protected.Use(middleware.Auth(cfg.JWTSecret))
 
 	protected.GET("/me", userH.Me)
+	protected.PATCH("/me", userH.UpdateMe)
 	protected.PUT("/me/push-token", userH.UpdatePushToken)
 	protected.GET("/users/search", userH.SearchUsers)
 
@@ -41,6 +48,7 @@ func Setup(db *gorm.DB, jwtSecret string) *gin.Engine {
 	todos.PUT("/:id", todoH.Update)
 	todos.DELETE("/:id", todoH.Delete)
 	todos.PATCH("/:id/complete", todoH.Complete)
+	todos.PATCH("/:id/reopen", todoH.Reopen)
 
 	friends := protected.Group("/friends")
 	friends.GET("", friendH.ListFriends)

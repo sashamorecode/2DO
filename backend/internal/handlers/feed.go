@@ -60,10 +60,10 @@ func (h *FeedHandler) GetFeed(c *gin.Context) {
 		}
 	}
 
-	// Load friends' pending todos
+	// Load friends' pending, non-private todos
 	var todos []models.Todo
 	h.db.Preload("User").
-		Where("user_id IN ? AND status = ?", friendIDs, models.StatusPending).
+		Where("user_id IN ? AND status = ? AND is_private = ?", friendIDs, models.StatusPending, false).
 		Order("CASE priority WHEN 'A' THEN 1 WHEN 'B' THEN 2 ELSE 3 END, deadline ASC NULLS LAST").
 		Find(&todos)
 
