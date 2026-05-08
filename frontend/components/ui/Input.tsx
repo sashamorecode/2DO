@@ -23,17 +23,24 @@ export function Input({ label, error, style, ...rest }: Props) {
 
 const styles = StyleSheet.create({
   wrapper: { marginBottom: 16 },
-  label: { color: colors.textMuted, fontSize: 13, marginBottom: 6, fontWeight: '600' },
+  label: {
+    color: colors.textMuted,
+    fontSize: 12,
+    marginBottom: 6,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
   input: {
     backgroundColor: colors.surface,
     color: colors.text,
-    borderRadius: 10,
+    borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
   },
   inputError: { borderColor: colors.error },
-  error: { color: colors.error, fontSize: 12, marginTop: 4 },
+  error: { color: colors.error, fontSize: 12, marginTop: 4, fontWeight: '600' },
 });
