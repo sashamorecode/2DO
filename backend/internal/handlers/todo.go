@@ -24,20 +24,29 @@ type todoRequest struct {
 	Description string          `json:"description"`
 	Priority    models.Priority `json:"priority" binding:"required,oneof=A B C"`
 	Deadline    *time.Time      `json:"deadline"`
+	PlannedAt   *time.Time      `json:"planned_at"`
+	IsPrivate   bool            `json:"is_private"`
 }
 
 func (h *TodoHandler) List(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	var todos []models.Todo
+	status := c.Query("status")
 	q := h.db.Where("user_id = ?", userID)
-	if status := c.Query("status"); status != "" {
+	if status != "" {
 		q = q.Where("status = ?", status)
 	}
 	if priority := c.Query("priority"); priority != "" {
 		q = q.Where("priority = ?", priority)
 	}
-	// Sort: A → B → C, then earliest deadline first
-	q.Order("CASE priority WHEN 'A' THEN 1 WHEN 'B' THEN 2 ELSE 3 END, deadline ASC NULLS LAST").Find(&todos)
+	if status == string(models.StatusCompleted) {
+		// Most recently finished first
+		q = q.Order("completed_at DESC NULLS LAST")
+	} else {
+		// Pending list: A → B → C, then earliest deadline first
+		q = q.Order("CASE priority WHEN 'A' THEN 1 WHEN 'B' THEN 2 ELSE 3 END, deadline ASC NULLS LAST")
+	}
+	q.Find(&todos)
 	c.JSON(http.StatusOK, todos)
 }
 
@@ -54,6 +63,8 @@ func (h *TodoHandler) Create(c *gin.Context) {
 		Description: req.Description,
 		Priority:    req.Priority,
 		Deadline:    req.Deadline,
+		PlannedAt:   req.PlannedAt,
+		IsPrivate:   req.IsPrivate,
 		Status:      models.StatusPending,
 	}
 	if err := h.db.Create(&todo).Error; err != nil {
@@ -87,6 +98,8 @@ func (h *TodoHandler) Update(c *gin.Context) {
 	todo.Description = req.Description
 	todo.Priority = req.Priority
 	todo.Deadline = req.Deadline
+	todo.PlannedAt = req.PlannedAt
+	todo.IsPrivate = req.IsPrivate
 	if err := h.db.Save(&todo).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update todo"})
 		return
@@ -115,6 +128,21 @@ func (h *TodoHandler) Complete(c *gin.Context) {
 	todo.CompletedAt = &now
 	if err := h.db.Save(&todo).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to complete todo"})
+		return
+	}
+	c.JSON(http.StatusOK, todo)
+}
+
+func (h *TodoHandler) Reopen(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	todo, ok := h.findOwned(c, userID)
+	if !ok {
+		return
+	}
+	todo.Status = models.StatusPending
+	todo.CompletedAt = nil
+	if err := h.db.Save(&todo).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to reopen todo"})
 		return
 	}
 	c.JSON(http.StatusOK, todo)

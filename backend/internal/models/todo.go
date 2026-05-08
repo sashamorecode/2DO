@@ -30,6 +30,8 @@ type Todo struct {
 	Description string     `gorm:"type:text" json:"description"`
 	Priority    Priority   `gorm:"type:varchar(1);not null" json:"priority"`
 	Deadline    *time.Time `json:"deadline"`
+	PlannedAt   *time.Time `json:"planned_at"`
+	IsPrivate   bool       `gorm:"not null;default:false" json:"is_private"`
 	Status      TodoStatus `gorm:"type:varchar(20);not null;default:pending" json:"status"`
 	CompletedAt *time.Time `json:"completed_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
