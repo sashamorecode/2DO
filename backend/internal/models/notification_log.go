@@ -10,8 +10,14 @@ import (
 type NotificationType string
 
 const (
-	NotificationWarning6h    NotificationType = "warning_6h"
-	NotificationDeadlineMiss NotificationType = "deadline_missed"
+	NotificationWarning6h     NotificationType = "warning_6h"
+	NotificationDeadlineMiss  NotificationType = "deadline_missed"
+	// Stage 1 — heads up to the owner that friends will be notified in 24h.
+	NotificationDoDateMissed  NotificationType = "do_date_missed"
+	NotificationDueDateMissed NotificationType = "due_date_missed"
+	// Stage 2 — friends pinged 24h after the owner heads-up.
+	NotificationDoDateInterventionFriends  NotificationType = "do_date_intervention_friends"
+	NotificationDueDateInterventionFriends NotificationType = "due_date_intervention_friends"
 )
 
 type DeadlineNotification struct {

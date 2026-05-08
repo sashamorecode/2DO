@@ -31,6 +31,38 @@ func (s *NotificationService) SendDeadlineMissedToFriend(pushToken, ownerUsernam
 	return s.send(pushToken, "👀 Accountability Check", fmt.Sprintf("%s missed their deadline on \"%s\"", ownerUsername, todoTitle))
 }
 
+func (s *NotificationService) SendDoDateMissed(pushToken, todoTitle string) error {
+	return s.send(
+		pushToken,
+		"⏰ Time to do it",
+		fmt.Sprintf("Your do date for \"%s\" has passed. Your friends will be notified in 24 hours unless you finish it.", todoTitle),
+	)
+}
+
+func (s *NotificationService) SendDueDateMissed(pushToken, todoTitle string) error {
+	return s.send(
+		pushToken,
+		"📌 Past due",
+		fmt.Sprintf("\"%s\" is past its due date. Your friends will be notified in 24 hours unless you finish it.", todoTitle),
+	)
+}
+
+func (s *NotificationService) SendDoDateInterventionToFriend(pushToken, ownerUsername, todoTitle string) error {
+	return s.send(
+		pushToken,
+		"🤝 Intervention time",
+		fmt.Sprintf("%s's do date for \"%s\" passed 24h ago — give them a nudge.", ownerUsername, todoTitle),
+	)
+}
+
+func (s *NotificationService) SendDueDateInterventionToFriend(pushToken, ownerUsername, todoTitle string) error {
+	return s.send(
+		pushToken,
+		"🤝 Intervention time",
+		fmt.Sprintf("%s's due date for \"%s\" passed 24h ago — give them a nudge.", ownerUsername, todoTitle),
+	)
+}
+
 func (s *NotificationService) send(pushToken, title, body string) error {
 	if pushToken == "" {
 		return nil
