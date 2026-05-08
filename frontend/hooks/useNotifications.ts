@@ -1,24 +1,30 @@
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+const isExpoGo = Constants.appOwnership === 'expo';
+const canRegisterPush = !isExpoGo && Platform.OS !== 'web';
+
+if (canRegisterPush) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 export function useNotifications() {
   const { token } = useAuthStore();
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || !canRegisterPush) return;
     registerForPushNotifications();
   }, [token]);
 }
