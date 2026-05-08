@@ -1,7 +1,10 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -25,7 +28,75 @@ func (h *UserHandler) Me(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"user": user.ToPublic()})
+	c.JSON(http.StatusOK, gin.H{"user": user.ToMe()})
+}
+
+var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
+
+type updateMeRequest struct {
+	Username *string `json:"username"`
+	Timezone *string `json:"timezone"`
+}
+
+func (h *UserHandler) UpdateMe(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	var req updateMeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	updates := map[string]interface{}{}
+
+	if req.Username != nil {
+		username := strings.TrimSpace(*req.Username)
+		if len(username) < 3 || len(username) > 50 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "username must be 3-50 characters"})
+			return
+		}
+		if !usernameRegex.MatchString(username) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "username may only contain letters, digits, and underscores"})
+			return
+		}
+
+		var clash models.User
+		err := h.db.Where("username = ? AND id <> ?", username, userID).First(&clash).Error
+		if err == nil {
+			c.JSON(http.StatusConflict, gin.H{"error": "username already taken"})
+			return
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check username"})
+			return
+		}
+		updates["username"] = username
+	}
+
+	if req.Timezone != nil {
+		tz := strings.TrimSpace(*req.Timezone)
+		if _, err := time.LoadLocation(tz); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid timezone"})
+			return
+		}
+		updates["timezone"] = tz
+	}
+
+	if len(updates) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no fields to update"})
+		return
+	}
+
+	if err := h.db.Model(&models.User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update profile"})
+		return
+	}
+
+	var user models.User
+	if err := h.db.First(&user, "id = ?", userID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load user"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"user": user.ToMe()})
 }
 
 func (h *UserHandler) UpdatePushToken(c *gin.Context) {
