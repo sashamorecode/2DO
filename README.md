@@ -158,6 +158,16 @@ npx expo start --android   # or --ios
 
 ---
 
+## Android APK Releases
+
+The repo includes a GitHub Actions workflow at `.github/workflows/android-apk-release.yml` that builds the Android release APK and publishes it to GitHub Releases.
+
+- Push a tag like `v1.0.0` to trigger an automatic build and release.
+- Or run the workflow manually from the Actions tab and provide a release tag.
+- Each run also uploads the APK as a workflow artifact, even before you download it from the GitHub Release page.
+
+---
+
 ## Database
 
 GORM runs `AutoMigrate` on every backend startup — no manual migration step needed. The PostgreSQL data is persisted in a Docker named volume (`pgdata`) so it survives container restarts.

@@ -1,0 +1,106 @@
+name: Android APK Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to create or update
+        required: true
+        type: string
+      release_name:
+        description: Optional GitHub release title
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - name: Resolve release metadata
+        id: release_meta
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            release_tag="${{ inputs.tag }}"
+            release_name="${{ inputs.release_name }}"
+          else
+            release_tag="${{ github.ref_name }}"
+            release_name="${{ github.ref_name }}"
+          fi
+
+          if [ -z "$release_name" ]; then
+            release_name="$release_tag"
+          fi
+
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+          echo "release_name=$release_name" >> "$GITHUB_OUTPUT"
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Seed frontend env file
+        working-directory: frontend
+        run: |
+          if [ ! -f .env ] && [ -f .env.example ]; then
+            cp .env.example .env
+          fi
+
+      - name: Build release APK
+        working-directory: frontend/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-apk-${{ steps.release_meta.outputs.release_tag }}
+          path: frontend/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+
+      - name: Prepare release asset
+        run: |
+          cp frontend/android/app/build/outputs/apk/release/app-release.apk \
+            "$RUNNER_TEMP/2do-${{ steps.release_meta.outputs.release_tag }}.apk"
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release_meta.outputs.release_tag }}
+          RELEASE_NAME: ${{ steps.release_meta.outputs.release_name }}
+          RELEASE_ASSET: ${{ runner.temp }}/2do-${{ steps.release_meta.outputs.release_tag }}.apk
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$RELEASE_ASSET" --clobber
+          else
+            gh release create "$RELEASE_TAG" "$RELEASE_ASSET" \
+              --title "$RELEASE_NAME" \
+              --notes "Automated APK release for $RELEASE_TAG." \
+              --target "$GITHUB_SHA"
+          fi
