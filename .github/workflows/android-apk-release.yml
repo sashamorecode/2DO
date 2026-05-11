@@ -81,10 +81,33 @@ jobs:
             cp .env.example .env
           fi
 
-          sed -i "s|^EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=.*|EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=$EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID|" .env
-          if [ -n "$EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID" ]; then
-            sed -i "s|^EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=.*|EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=$EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID|" .env
-          fi
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+
+          env_path = Path('.env')
+          entries = {}
+
+          for raw_line in env_path.read_text().splitlines():
+              if '=' not in raw_line or raw_line.lstrip().startswith('#'):
+                  continue
+              key, value = raw_line.split('=', 1)
+              entries[key] = value
+
+          entries['EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID'] = os.environ['EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID']
+
+          ios_client_id = os.environ.get('EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID', '')
+          if ios_client_id:
+              entries['EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID'] = ios_client_id
+
+          ordered_keys = [
+              'EXPO_PUBLIC_API_URL',
+              'EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID',
+              'EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID',
+          ]
+          lines = [f'{key}={entries[key]}' for key in ordered_keys if key in entries]
+          env_path.write_text('\n'.join(lines) + '\n')
+          PY
 
       - name: Prepare Android release keystore
         env:
