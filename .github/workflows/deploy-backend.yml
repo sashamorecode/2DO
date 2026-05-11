@@ -1,0 +1,88 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - .github/workflows/deploy-backend.yml
+      - backend/**
+      - deploy/**
+      - docker-compose.prod.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-backend-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate deploy secrets
+        env:
+          VPS_SSH_USER: ${{ secrets.VPS_SSH_USER }}
+          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          PROD_ENV_FILE_B64: ${{ secrets.PROD_ENV_FILE_B64 }}
+        run: |
+          test -n "$VPS_SSH_USER"
+          test -n "$VPS_SSH_PRIVATE_KEY"
+          test -n "$PROD_ENV_FILE_B64"
+
+      - name: Build deployment bundle
+        run: |
+          mkdir -p .deploy-artifacts
+          tar -czf .deploy-artifacts/2do-backend.tgz backend deploy docker-compose.prod.yml
+
+      - name: Copy deployment bundle to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: 2do.sashasalzanoweir.com
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          source: .deploy-artifacts/2do-backend.tgz
+          target: /tmp
+          strip_components: 1
+
+      - name: Install and deploy on VPS
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          PROD_ENV_FILE_B64: ${{ secrets.PROD_ENV_FILE_B64 }}
+        with:
+          host: 2do.sashasalzanoweir.com
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          envs: PROD_ENV_FILE_B64
+          script: |
+            set -euo pipefail
+
+            run_root() {
+              if [ "$(id -u)" -eq 0 ]; then
+                "$@"
+              else
+                sudo "$@"
+              fi
+            }
+
+            APP_DIR=/opt/2do
+
+            run_root mkdir -p "$APP_DIR"
+            run_root rm -rf "$APP_DIR/backend" "$APP_DIR/deploy"
+            run_root rm -f "$APP_DIR/docker-compose.prod.yml" "$APP_DIR/.env"
+            run_root tar -xzf /tmp/2do-backend.tgz -C "$APP_DIR"
+            printf '%s' "$PROD_ENV_FILE_B64" | base64 -d | run_root tee "$APP_DIR/.env" >/dev/null
+            run_root chmod 600 "$APP_DIR/.env"
+
+            cd "$APP_DIR"
+            if [ "$(id -u)" -eq 0 ]; then
+              bash deploy/setup-vps.sh
+            else
+              sudo bash deploy/setup-vps.sh
+            fi
