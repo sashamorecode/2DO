@@ -1,4 +1,7 @@
-{$APP_DOMAIN} {
+https://{$APP_DOMAIN} {
+    tls {
+        dns ionos {env.IONOS_AUTH_API_TOKEN}
+    }
     encode gzip zstd
     reverse_proxy backend:9000
 }

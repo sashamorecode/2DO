@@ -91,7 +91,7 @@ cd frontend && npx expo start --port 9081
 
 ## Production Backend Deploy
 
-The backend now deploys to `https://2do.sashasalzanoweir.com` via [`.github/workflows/deploy-backend.yml`](.github/workflows/deploy-backend.yml). The workflow uploads `backend/`, `deploy/`, and `docker-compose.prod.yml` to `/opt/2do` on the VPS, writes `/opt/2do/.env` from a GitHub secret, then runs [`deploy/setup-vps.sh`](deploy/setup-vps.sh) to install Docker if needed and start the production stack.
+The backend now deploys to `https://2do.sashasalzanoweir.com` via [`.github/workflows/deploy-backend.yml`](.github/workflows/deploy-backend.yml). The workflow uploads `backend/`, `deploy/`, and `docker-compose.prod.yml` to `/opt/2do`, writes `/opt/2do/.env` from a GitHub secret, then runs [deploy/setup-vps.sh](/home/sasha/Projects/2DO/deploy/setup-vps.sh) to install Docker if needed and start the production stack. Caddy is built with the IONOS DNS plugin so TLS can be issued with the DNS-01 challenge instead of relying on public HTTP validation.
 
 Required GitHub repository secrets:
 
@@ -102,6 +102,7 @@ Required GitHub repository secrets:
 Production backend env expectations:
 
 - `APP_DOMAIN` should stay `2do.sashasalzanoweir.com` unless you move hosts
+- `IONOS_AUTH_API_TOKEN` should be the IONOS DNS API token in `publicPrefix.secret` format so Caddy can create `_acme-challenge` TXT records
 - `GOOGLE_CLIENT_IDS` should include every Google OAuth client ID you accept in production
 - `PORT` should remain `9000`; Caddy handles public `80/443`
 

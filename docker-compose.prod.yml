@@ -36,10 +36,13 @@ services:
       retries: 12
 
   caddy:
-    image: caddy:2-alpine
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.caddy
     restart: unless-stopped
     environment:
       APP_DOMAIN: ${APP_DOMAIN:-2do.sashasalzanoweir.com}
+      IONOS_AUTH_API_TOKEN: ${IONOS_AUTH_API_TOKEN:-}
     ports:
       - "80:80"
       - "443:443"
