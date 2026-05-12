@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -24,6 +24,9 @@ interface Props {
   onComplete?: (id: string) => void;
   onPress?: (todo: Todo) => void;
   readOnly?: boolean;
+  actionTitle?: string;
+  onActionPress?: () => void;
+  actionLoading?: boolean;
 }
 
 // Total drama window. The card collapses around the BURST_AT mark; the
@@ -33,7 +36,15 @@ const WINDUP_MS = 270;
 const BURST_AT = 300;
 const TOTAL_MS = 1000;
 
-export function TodoCard({ todo, onComplete, onPress, readOnly }: Props) {
+export function TodoCard({
+  todo,
+  onComplete,
+  onPress,
+  readOnly,
+  actionTitle,
+  onActionPress,
+  actionLoading,
+}: Props) {
   const scale = useSharedValue(1);
   const opacity = useSharedValue(1);
   const rotate = useSharedValue(0);
@@ -131,7 +142,23 @@ export function TodoCard({ todo, onComplete, onPress, readOnly }: Props) {
               </View>
             </View>
           </View>
-          {onPress && <ChevronRight size={20} color={colors.textDim} strokeWidth={2.2} />}
+          <View style={styles.right}> 
+            {onActionPress && actionTitle ? (
+              <TouchableOpacity
+                style={styles.actionChip}
+                onPress={onActionPress}
+                disabled={actionLoading}
+                activeOpacity={0.85}
+              >
+                {actionLoading ? (
+                  <ActivityIndicator size="small" color={colors.text} />
+                ) : (
+                  <Text style={styles.actionChipLabel}>{actionTitle}</Text>
+                )}
+              </TouchableOpacity>
+            ) : null}
+            {onPress && <ChevronRight size={20} color={colors.textDim} strokeWidth={2.2} />}
+          </View>
         </TouchableOpacity>
       </Animated.View>
     </Animated.View>
@@ -152,8 +179,25 @@ const styles = StyleSheet.create({
   },
   left: { flexDirection: 'row', alignItems: 'flex-start', flex: 1, gap: 12 },
   content: { flex: 1, gap: 6 },
+  right: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   title: { color: colors.text, fontSize: 16, fontWeight: '600', flexShrink: 1 },
   desc: { color: colors.textMuted, fontSize: 13 },
   meta: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
+  actionChip: {
+    minWidth: 72,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.accentMuted,
+    backgroundColor: colors.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionChipLabel: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '700',
+  },
 });

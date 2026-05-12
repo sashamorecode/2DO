@@ -46,4 +46,7 @@ export const todosApi = {
 
   reopen: (id: string) =>
     api.patch<Todo>(`/todos/${id}/reopen`).then((r) => r.data),
+
+  poke: (id: string) =>
+    api.post<{ ok: boolean }>(`/todos/${id}/poke`).then((r) => r.data),
 };

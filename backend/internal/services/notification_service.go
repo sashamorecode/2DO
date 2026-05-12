@@ -3,12 +3,21 @@ package services
 import (
 	"fmt"
 	"log"
+	"math/rand"
 
 	expo "github.com/oliveroneill/exponent-server-sdk-golang/sdk"
 )
 
 type NotificationService struct {
 	client *expo.PushClient
+}
+
+var pokeNotificationTemplates = []string{
+	"Hi there! %s is reminding you to do %q.",
+	"Tiny nudge incoming: %s is cheering you on to finish %q.",
+	"Poke poke. %s thinks now might be a sweet time to do %q.",
+	"A cute reminder from %s: %q is waiting for you.",
+	"Just a lil tap from %s to say: you've got %q.",
 }
 
 func NewNotificationService(accessToken string) *NotificationService {
@@ -61,6 +70,18 @@ func (s *NotificationService) SendDueDateInterventionToFriend(pushToken, ownerUs
 		"🤝 Intervention time",
 		fmt.Sprintf("%s's due date for \"%s\" passed 24h ago — give them a nudge.", ownerUsername, todoTitle),
 	)
+}
+
+func (s *NotificationService) SendTaskPoke(pushToken, fromUsername, todoTitle string) error {
+	return s.send(
+		pushToken,
+		"A friend poked your task",
+		fmt.Sprintf(randomPokeTemplate(), fromUsername, todoTitle),
+	)
+}
+
+func randomPokeTemplate() string {
+	return pokeNotificationTemplates[rand.Intn(len(pokeNotificationTemplates))]
 }
 
 func (s *NotificationService) send(pushToken, title, body string) error {

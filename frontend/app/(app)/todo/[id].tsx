@@ -6,11 +6,14 @@ import { colors } from '../../../constants/colors';
 import { Screen } from '../../../components/ui/Screen';
 import { TodoForm } from '../../../components/todo/TodoForm';
 import { todosApi, CreateTodoInput } from '../../../services/todos.api';
+import { hasMeaningfulTodoTime, parseTodoDateInTimeZone } from '../../../services/timezone';
+import { useAuthStore } from '../../../store/authStore';
 
 export default function EditTodoScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const qc = useQueryClient();
+  const timezone = useAuthStore((s) => s.user?.timezone);
 
   const { data: todo, isLoading } = useQuery({
     queryKey: ['todo', id],
@@ -54,10 +57,10 @@ export default function EditTodoScreen() {
           title: todo.title,
           description: todo.description,
           priority: todo.priority,
-          deadline: todo.deadline ? new Date(todo.deadline) : null,
-          deadlineHasTime: hasMeaningfulTime(todo.deadline),
-          plannedAt: todo.planned_at ? new Date(todo.planned_at) : null,
-          plannedHasTime: hasMeaningfulTime(todo.planned_at),
+          deadline: parseTodoDateInTimeZone(todo.deadline, timezone),
+          deadlineHasTime: hasMeaningfulTodoTime(todo.deadline, 'end', timezone),
+          plannedAt: parseTodoDateInTimeZone(todo.planned_at, timezone),
+          plannedHasTime: hasMeaningfulTodoTime(todo.planned_at, 'morning', timezone),
           isPrivate: todo.is_private,
         }}
         onSubmit={handleSubmit}
@@ -65,15 +68,6 @@ export default function EditTodoScreen() {
       />
     </Screen>
   );
-}
-
-function hasMeaningfulTime(iso: string | null): boolean {
-  if (!iso) return false;
-  const d = new Date(iso);
-  // Treat 09:00 (planned default) and 23:59 (deadline default) as "no time set"
-  const h = d.getHours();
-  const m = d.getMinutes();
-  return !((h === 9 && m === 0) || (h === 23 && m === 59));
 }
 
 const styles = StyleSheet.create({

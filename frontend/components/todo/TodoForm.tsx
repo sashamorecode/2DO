@@ -18,6 +18,8 @@ import { Priority, PRIORITIES, PRIORITY_ORDER } from '../../constants/priorities
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { CreateTodoInput } from '../../services/todos.api';
+import { serializeTodoDateInTimeZone } from '../../services/timezone';
+import { useAuthStore } from '../../store/authStore';
 
 const schema = z.object({
   title: z.string().min(1, 'Title is required').max(255),
@@ -51,6 +53,7 @@ interface Props {
 }
 
 export function TodoForm({ initialValues, onSubmit, submitLabel = 'Save', loading }: Props) {
+  const timezone = useAuthStore((s) => s.user?.timezone);
   const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -70,8 +73,12 @@ export function TodoForm({ initialValues, onSubmit, submitLabel = 'Save', loadin
       title: data.title,
       description: data.description,
       priority: data.priority,
-      deadline: data.deadline ? toISO(data.deadline, data.deadlineHasTime, 'end') : null,
-      planned_at: data.plannedAt ? toISO(data.plannedAt, data.plannedHasTime, 'morning') : null,
+      deadline: data.deadline
+        ? serializeTodoDateInTimeZone(data.deadline, data.deadlineHasTime, 'end', timezone)
+        : null,
+      planned_at: data.plannedAt
+        ? serializeTodoDateInTimeZone(data.plannedAt, data.plannedHasTime, 'morning', timezone)
+        : null,
       is_private: data.isPrivate,
     });
   }
@@ -278,14 +285,6 @@ function DateTimeField({
       )}
     </View>
   );
-}
-
-function toISO(d: Date, hasTime: boolean, defaultTime: 'morning' | 'end'): string {
-  if (hasTime) return d.toISOString();
-  const out = new Date(d);
-  if (defaultTime === 'end') out.setHours(23, 59, 0, 0);
-  else out.setHours(9, 0, 0, 0);
-  return out.toISOString();
 }
 
 const styles = StyleSheet.create({

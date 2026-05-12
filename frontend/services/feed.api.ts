@@ -6,9 +6,19 @@ export interface FriendFeedItem {
   todos: Todo[];
 }
 
+interface FeedParams {
+  friendId?: string;
+  status?: 'pending' | 'completed';
+}
+
 export const feedApi = {
-  get: (friendId?: string) =>
+  get: (params?: FeedParams) =>
     api
-      .get<FriendFeedItem[]>('/feed', { params: friendId ? { friend_id: friendId } : undefined })
+      .get<FriendFeedItem[]>('/feed', {
+        params: {
+          friend_id: params?.friendId,
+          status: params?.status,
+        },
+      })
       .then((r) => r.data),
 };

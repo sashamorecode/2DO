@@ -25,6 +25,16 @@ type FriendFeedItem struct {
 
 func (h *FeedHandler) GetFeed(c *gin.Context) {
 	userID := middleware.GetUserID(c)
+	status := models.StatusPending
+	if rawStatus := c.Query("status"); rawStatus != "" {
+		switch models.TodoStatus(rawStatus) {
+		case models.StatusPending, models.StatusCompleted:
+			status = models.TodoStatus(rawStatus)
+		default:
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid status"})
+			return
+		}
+	}
 
 	// Gather accepted friend IDs
 	var friendships []models.Friendship
@@ -60,12 +70,18 @@ func (h *FeedHandler) GetFeed(c *gin.Context) {
 		}
 	}
 
-	// Load friends' pending, non-private todos
+	// Load friends' public todos for the requested status.
 	var todos []models.Todo
-	h.db.Preload("User").
-		Where("user_id IN ? AND status = ? AND is_private = ?", friendIDs, models.StatusPending, false).
-		Order("CASE priority WHEN 'A' THEN 1 WHEN 'B' THEN 2 ELSE 3 END, deadline ASC NULLS LAST").
-		Find(&todos)
+	query := h.db.Preload("User").
+		Where("user_id IN ? AND status = ? AND is_private = ?", friendIDs, status, false)
+
+	if status == models.StatusCompleted {
+		query = query.Order("completed_at DESC NULLS LAST, updated_at DESC")
+	} else {
+		query = query.Order("CASE priority WHEN 'A' THEN 1 WHEN 'B' THEN 2 ELSE 3 END, deadline ASC NULLS LAST")
+	}
+
+	query.Find(&todos)
 
 	// Group by friend
 	grouped := map[uuid.UUID]*FriendFeedItem{}

@@ -1,21 +1,31 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { format } from 'date-fns';
 import { CheckCircle2, RotateCcw, ChevronRight, Lock } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 import { Todo } from '../../services/todos.api';
 import { PriorityBadge } from './PriorityBadge';
+import { formatDateTimeInTimeZone } from '../../services/timezone';
+import { useAuthStore } from '../../store/authStore';
 
 interface Props {
   todo: Todo;
-  onReopen: () => void;
-  onPress: () => void;
+  onReopen?: () => void;
+  onPress?: () => void;
+  ownerLabel?: string;
 }
 
-export function FinishedRow({ todo, onReopen, onPress }: Props) {
-  const finishedAt = todo.completed_at ? new Date(todo.completed_at) : null;
+export function FinishedRow({ todo, onReopen, onPress, ownerLabel }: Props) {
+  const timezone = useAuthStore((s) => s.user?.timezone);
+  const finishedAt = todo.completed_at
+    ? formatDateTimeInTimeZone(todo.completed_at, timezone, {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      })
+    : null;
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85} disabled={!onPress}>
       <View style={styles.left}>
         <CheckCircle2 size={22} color={colors.success} strokeWidth={2.2} />
         <View style={styles.content}>
@@ -27,25 +37,30 @@ export function FinishedRow({ todo, onReopen, onPress }: Props) {
           </View>
           <View style={styles.meta}>
             <PriorityBadge priority={todo.priority} />
+            {ownerLabel ? <Text style={styles.ownerLabel}>{ownerLabel}</Text> : null}
             {finishedAt && (
               <Text style={styles.finishedAt}>
-                Finished {format(finishedAt, 'MMM d, h:mm a')}
+                Finished {finishedAt}
               </Text>
             )}
           </View>
         </View>
       </View>
-      <View style={styles.actions}>
-        <TouchableOpacity
-          onPress={onReopen}
-          hitSlop={8}
-          style={styles.reopenBtn}
-          accessibilityLabel="Reactivate task"
-        >
-          <RotateCcw size={16} color={colors.accentLight} strokeWidth={2.4} />
-        </TouchableOpacity>
-        <ChevronRight size={20} color={colors.textDim} strokeWidth={2.2} />
-      </View>
+      {(onReopen || onPress) ? (
+        <View style={styles.actions}>
+          {onReopen ? (
+            <TouchableOpacity
+              onPress={onReopen}
+              hitSlop={8}
+              style={styles.reopenBtn}
+              accessibilityLabel="Reactivate task"
+            >
+              <RotateCcw size={16} color={colors.accentLight} strokeWidth={2.4} />
+            </TouchableOpacity>
+          ) : null}
+          {onPress ? <ChevronRight size={20} color={colors.textDim} strokeWidth={2.2} /> : null}
+        </View>
+      ) : null}
     </TouchableOpacity>
   );
 }
@@ -75,6 +90,13 @@ const styles = StyleSheet.create({
     textDecorationColor: colors.textDim,
   },
   meta: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
+  ownerLabel: {
+    color: colors.accentLight,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   finishedAt: { color: colors.textDim, fontSize: 12, fontWeight: '500' },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 8 },
   reopenBtn: {

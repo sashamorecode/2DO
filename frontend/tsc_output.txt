@@ -1,0 +1,25 @@
+app/(app)/social.tsx(36,8): error TS2769: No overload matches this call.
+  Overload 2 of 2, '(props: SectionListProps<FriendRequest, { title: string; data: "search"[]; renderItem: () => Element; } | { title: string; data: FriendRequest[]; renderItem: ({ item }: { item: FriendRequest; }) => Element; } | { ...; }>, context: any): SectionList<...>', gave the following error.
+    Type '"search"' is not assignable to type 'FriendRequest | (FriendRequest & "search") | (FriendRequest & FriendItem) | (FriendRequest & "empty")'.
+  Overload 2 of 2, '(props: SectionListProps<FriendRequest, { title: string; data: "search"[]; renderItem: () => Element; } | { title: string; data: FriendRequest[]; renderItem: ({ item }: { item: FriendRequest; }) => Element; } | { ...; }>, context: any): SectionList<...>', gave the following error.
+    Type '{ title: string; data: FriendItem[] | "empty"[]; renderItem: ({ item }: { item: FriendItem | "empty"; }) => React.JSX.Element; }' is not assignable to type 'SectionListData<FriendRequest, { title: string; data: "search"[]; renderItem: () => Element; } | { title: string; data: FriendRequest[]; renderItem: ({ item }: { item: FriendRequest; }) => Element; } | { ...; }>'.
+      Types of property 'data' are incompatible.
+        Type 'FriendItem[] | "empty"[]' is not assignable to type '(readonly FriendRequest[] & "search"[]) | (readonly FriendRequest[] & FriendRequest[]) | (readonly FriendRequest[] & (FriendItem[] | "empty"[]))'.
+          Type 'FriendItem[]' is not assignable to type '(readonly FriendRequest[] & "search"[]) | (readonly FriendRequest[] & FriendRequest[]) | (readonly FriendRequest[] & (FriendItem[] | "empty"[]))'.
+            Type 'FriendItem[]' is not assignable to type 'readonly FriendRequest[] & "empty"[]'.
+              Type 'FriendItem[]' is not assignable to type 'readonly FriendRequest[]'.
+                Type 'FriendItem' is missing the following properties from type 'FriendRequest': id, status, created_at
+  Overload 2 of 2, '(props: SectionListProps<FriendRequest, { title: string; data: "search"[]; renderItem: () => Element; } | { title: string; data: FriendRequest[]; renderItem: ({ item }: { item: FriendRequest; }) => Element; } | { ...; }>, context: any): SectionList<...>', gave the following error.
+    Type 'FriendItem[] | "empty"[]' is not assignable to type '(readonly FriendRequest[] & "search"[]) | (readonly FriendRequest[] & FriendRequest[]) | (readonly FriendRequest[] & (FriendItem[] | "empty"[]))'.
+      Type 'FriendItem[]' is not assignable to type '(readonly FriendRequest[] & "search"[]) | (readonly FriendRequest[] & FriendRequest[]) | (readonly FriendRequest[] & (FriendItem[] | "empty"[]))'.
+        Type 'FriendItem[]' is not assignable to type 'readonly FriendRequest[] & "empty"[]'.
+          Type 'FriendItem[]' is not assignable to type 'readonly FriendRequest[]'.
+            Type 'FriendItem' is missing the following properties from type 'FriendRequest': id, status, created_at
+  Overload 2 of 2, '(props: SectionListProps<FriendRequest, { title: string; data: "search"[]; renderItem: () => Element; } | { title: string; data: FriendRequest[]; renderItem: ({ item }: { item: FriendRequest; }) => Element; } | { ...; }>, context: any): SectionList<...>', gave the following error.
+    Type '({ item }: { item: FriendItem | "empty"; }) => React.JSX.Element' is not assignable to type '(SectionListRenderItem<FriendRequest, { title: string; data: "search"[]; renderItem: () => Element; } | { title: string; data: FriendRequest[]; renderItem: ({ item }: { item: FriendRequest; }) => Element; } | { ...; }> & (() => Element)) | (SectionListRenderItem<...> & (({ item }: { ...; }) => Element)) | (SectionLi...'.
+      Type '({ item }: { item: FriendItem | "empty"; }) => React.JSX.Element' is not assignable to type 'SectionListRenderItem<FriendRequest, { title: string; data: "search"[]; renderItem: () => Element; } | { title: string; data: FriendRequest[]; renderItem: ({ item }: { item: FriendRequest; }) => Element; } | { ...; }> & (() => Element)'.
+        Type '({ item }: { item: FriendItem | "empty"; }) => React.JSX.Element' is not assignable to type 'SectionListRenderItem<FriendRequest, { title: string; data: "search"[]; renderItem: () => Element; } | { title: string; data: FriendRequest[]; renderItem: ({ item }: { item: FriendRequest; }) => Element; } | { ...; }>'.
+          Types of parameters '__0' and 'info' are incompatible.
+            Type 'SectionListRenderItemInfo<FriendRequest, { title: string; data: "search"[]; renderItem: () => Element; } | { title: string; data: FriendRequest[]; renderItem: ({ item }: { item: FriendRequest; }) => Element; } | { ...; }>' is not assignable to type '{ item: FriendItem | "empty"; }'.
+              Types of property 'item' are incompatible.
+                Type 'FriendRequest' is not assignable to type 'FriendItem | "empty"'.

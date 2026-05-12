@@ -8,15 +8,17 @@ import (
 	"github.com/google/uuid"
 	"github.com/sasha/2do-backend/internal/middleware"
 	"github.com/sasha/2do-backend/internal/models"
+	"github.com/sasha/2do-backend/internal/services"
 	"gorm.io/gorm"
 )
 
 type TodoHandler struct {
-	db *gorm.DB
+	db    *gorm.DB
+	notif *services.NotificationService
 }
 
-func NewTodoHandler(db *gorm.DB) *TodoHandler {
-	return &TodoHandler{db: db}
+func NewTodoHandler(db *gorm.DB, notif *services.NotificationService) *TodoHandler {
+	return &TodoHandler{db: db, notif: notif}
 }
 
 type todoRequest struct {
@@ -148,6 +150,75 @@ func (h *TodoHandler) Reopen(c *gin.Context) {
 	c.JSON(http.StatusOK, todo)
 }
 
+func (h *TodoHandler) Poke(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	todoID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	var todo models.Todo
+	if err := h.db.Where("id = ?", todoID).First(&todo).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "todo not found"})
+		return
+	}
+
+	if todo.UserID == userID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "you cannot poke your own task"})
+		return
+	}
+
+	if todo.IsPrivate {
+		c.JSON(http.StatusForbidden, gin.H{"error": "task is private"})
+		return
+	}
+
+	if todo.Status != models.StatusPending {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "only pending tasks can be poked"})
+		return
+	}
+
+	if !h.areFriends(userID, todo.UserID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "you can only poke a friend's task"})
+		return
+	}
+
+	if h.notif == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "notifications are unavailable"})
+		return
+	}
+
+	var sender models.User
+	if err := h.db.Select("id", "username").First(&sender, "id = ?", userID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load sender"})
+		return
+	}
+
+	var owner models.User
+	if err := h.db.Select("id", "push_token").First(&owner, "id = ?", todo.UserID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load task owner"})
+		return
+	}
+
+	senderName := "A friend"
+	if sender.Username != nil && *sender.Username != "" {
+		senderName = *sender.Username
+	}
+
+	ownerPushToken := ""
+	if owner.PushToken != nil {
+		ownerPushToken = *owner.PushToken
+	}
+
+	if err := h.notif.SendTaskPoke(ownerPushToken, senderName, todo.Title); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to send poke"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
 func (h *TodoHandler) findOwned(c *gin.Context, userID uuid.UUID) (models.Todo, bool) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -161,4 +232,15 @@ func (h *TodoHandler) findOwned(c *gin.Context, userID uuid.UUID) (models.Todo, 
 		return models.Todo{}, false
 	}
 	return todo, true
+}
+
+func (h *TodoHandler) areFriends(userID, otherUserID uuid.UUID) bool {
+	var count int64
+	h.db.Model(&models.Friendship{}).
+		Where(
+			"((requester_id = ? AND addressee_id = ?) OR (requester_id = ? AND addressee_id = ?)) AND status = ?",
+			userID, otherUserID, otherUserID, userID, models.FriendshipAccepted,
+		).
+		Count(&count)
+	return count > 0
 }

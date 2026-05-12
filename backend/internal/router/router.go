@@ -14,11 +14,12 @@ func Setup(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	r.Use(middleware.CORS())
 
 	emailSvc := services.NewEmailService(cfg.ResendAPIKey, cfg.EmailFrom)
+	notifSvc := services.NewNotificationService(cfg.ExpoAccessToken)
 	rateLimiter := services.NewEmailRateLimiter()
 
 	authH := handlers.NewAuthHandler(db, cfg.JWTSecret, cfg.GoogleClientIDs, emailSvc, rateLimiter)
 	userH := handlers.NewUserHandler(db)
-	todoH := handlers.NewTodoHandler(db)
+	todoH := handlers.NewTodoHandler(db, notifSvc)
 	friendH := handlers.NewFriendHandler(db)
 	feedH := handlers.NewFeedHandler(db)
 
@@ -49,6 +50,7 @@ func Setup(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	todos.DELETE("/:id", todoH.Delete)
 	todos.PATCH("/:id/complete", todoH.Complete)
 	todos.PATCH("/:id/reopen", todoH.Reopen)
+	todos.POST("/:id/poke", todoH.Poke)
 
 	friends := protected.Group("/friends")
 	friends.GET("", friendH.ListFriends)
