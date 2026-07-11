@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
+  ScrollView,
 } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
@@ -23,11 +24,16 @@ import { TodoCard } from '../../components/todo/TodoCard';
 import { FinishedRow } from '../../components/todo/FinishedRow';
 import { todosApi, Todo } from '../../services/todos.api';
 import { feedApi, FriendFeedItem } from '../../services/feed.api';
+import { tagsApi, Tag } from '../../services/tags.api';
+import { bodyDoubleApi, BodyDoubleSession } from '../../services/bodyDouble.api';
 import { useAuthStore } from '../../store/authStore';
 import { PRIORITIES, PRIORITY_ORDER } from '../../constants/priorities';
+import { SessionCard } from '../../components/bodyDouble/SessionCard';
+import { formatDateTimeInTimeZone } from '../../services/timezone';
 
 type PrimaryTab = 'mine' | 'friends';
 type SecondaryTab = 'active' | 'calendar' | 'done';
+type UrgencyFilter = 'all' | 'A' | 'B' | 'C';
 
 interface TaskItem {
   todo: Todo;
@@ -55,6 +61,14 @@ export default function TasksScreen() {
 
   const [primaryTab, setPrimaryTab] = useState<PrimaryTab>('mine');
   const [secondaryTab, setSecondaryTab] = useState<SecondaryTab>('active');
+  const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>('all');
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+
+  const tagsQuery = useQuery({
+    queryKey: ['tags'],
+    queryFn: () => tagsApi.list(),
+    enabled: primaryTab === 'mine',
+  });
 
   const myPendingQuery = useQuery({
     queryKey: ['todos', 'pending'],
@@ -80,6 +94,12 @@ export default function TasksScreen() {
     queryFn: () => feedApi.get({ status: 'completed' }),
     enabled: primaryTab === 'friends' && secondaryTab === 'done',
     refetchInterval: 30_000,
+  });
+
+  const bodyDoubleSessionsQuery = useQuery({
+    queryKey: ['body-double-sessions'],
+    queryFn: () => bodyDoubleApi.listSessions(),
+    enabled: secondaryTab === 'calendar',
   });
 
   const completeMutation = useMutation({
@@ -134,16 +154,27 @@ export default function TasksScreen() {
   const myDone = myDoneQuery.data ?? [];
   const friendsPending = friendsPendingQuery.data ?? [];
   const friendsDone = friendsDoneQuery.data ?? [];
+  const tags = tagsQuery.data ?? [];
   const pokingTodoId = pokeMutation.isPending ? pokeMutation.variables?.todoId ?? null : null;
+
+  const myPendingFiltered = useMemo(
+    () => filterTodos(myPending, urgencyFilter, selectedTagIds),
+    [myPending, urgencyFilter, selectedTagIds]
+  );
+
+  const myDoneFiltered = useMemo(
+    () => filterTodos(myDone, urgencyFilter, selectedTagIds),
+    [myDone, urgencyFilter, selectedTagIds]
+  );
 
   const importanceGroups = useMemo(
     () =>
       PRIORITY_ORDER.map((priority) => ({
         priority,
         meta: PRIORITIES[priority],
-        data: sortByAnchorDate(myPending.filter((todo) => todo.priority === priority)),
+        data: sortByAnchorDate(myPendingFiltered.filter((todo) => todo.priority === priority)),
       })).filter((group) => group.data.length > 0),
-    [myPending]
+    [myPendingFiltered]
   );
 
   const friendsActiveGroups = useMemo(
@@ -152,14 +183,48 @@ export default function TasksScreen() {
   );
 
   const myCalendarSections = useMemo(
-    () => buildCalendarSections(myPending.map((todo) => ({ todo })), timezone),
-    [myPending, timezone]
+    () => buildCalendarSections(myPendingFiltered.map((todo) => ({ todo })), timezone),
+    [myPendingFiltered, timezone]
   );
 
   const friendsCalendarSections = useMemo(
     () => buildCalendarSections(flattenFeed(friendsPending), timezone),
     [friendsPending, timezone]
   );
+
+  // Build session calendar sections for body doubling
+  const sessionCalendarSections = useMemo(() => {
+    const sessions = bodyDoubleSessionsQuery.data ?? [];
+    if (sessions.length === 0) return [];
+
+    const groups = new Map<string, { data: BodyDoubleSession[]; sortTime: number; title: string; subtitle: string }>();
+
+    for (const session of sessions) {
+      const anchor = session.scheduled_at;
+      const key = anchor ? getDayKey(anchor, timezone) : 'undated';
+      const sortTime = anchor ? new Date(anchor).getTime() : Number.MAX_SAFE_INTEGER;
+
+      if (!groups.has(key)) {
+        groups.set(key, {
+          data: [],
+          sortTime,
+          title: anchor ? getDayTitle(anchor, timezone) : 'No date assigned',
+          subtitle: anchor ? getDaySubtitle(anchor, timezone) : '',
+        });
+      }
+
+      groups.get(key)?.data.push(session);
+    }
+
+    return [...groups.entries()]
+      .sort((left, right) => left[1].sortTime - right[1].sortTime)
+      .map(([key, value]) => ({
+        key: `bd-${key}`,
+        title: value.title,
+        subtitle: value.subtitle,
+        data: value.data,
+      }));
+  }, [bodyDoubleSessionsQuery.data, timezone]);
 
   const friendDoneItems = useMemo(
     () =>
@@ -171,8 +236,8 @@ export default function TasksScreen() {
 
   const stats = getStats({
     primaryTab,
-    myPendingCount: myPending.length,
-    myDoneCount: myDone.length,
+    myPendingCount: myPendingFiltered.length,
+    myDoneCount: myDoneFiltered.length,
     friendsPendingCount: countFeedTodos(friendsPending),
     friendsDoneCount: countFeedTodos(friendsDone),
     calendarCount:
@@ -189,6 +254,7 @@ export default function TasksScreen() {
     }
 
     if (primaryTab === 'mine') {
+      tagsQuery.refetch();
       myPendingQuery.refetch();
       return;
     }
@@ -241,6 +307,21 @@ export default function TasksScreen() {
           variant="secondary"
         />
 
+        {primaryTab === 'mine' ? (
+          <FilterBar
+            urgencyFilter={urgencyFilter}
+            onUrgencyFilter={setUrgencyFilter}
+            selectedTagIds={selectedTagIds}
+            tags={tags}
+            onToggleTag={(tagId) =>
+              setSelectedTagIds((prev) =>
+                prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
+              )
+            }
+            onClearTags={() => setSelectedTagIds([])}
+          />
+        ) : null}
+
         <View style={styles.statsRow}>
           {stats.map((stat) => (
             <View key={stat.label} style={styles.statCard}>
@@ -274,17 +355,18 @@ export default function TasksScreen() {
       {primaryTab === 'mine' && secondaryTab === 'calendar' ? (
         <CalendarBoard
           sections={myCalendarSections}
-          loading={myPendingQuery.isLoading}
+          loading={myPendingQuery.isLoading || bodyDoubleSessionsQuery.isLoading}
           onRefresh={onRefresh}
           onComplete={(id) => completeMutation.mutate(id)}
           onPress={(todo) => router.push(`/(app)/todo/${todo.id}`)}
+          sessionSections={sessionCalendarSections}
         />
       ) : null}
 
       {primaryTab === 'friends' && secondaryTab === 'calendar' ? (
         <CalendarBoard
           sections={friendsCalendarSections}
-          loading={friendsPendingQuery.isLoading}
+          loading={friendsPendingQuery.isLoading || bodyDoubleSessionsQuery.isLoading}
           onRefresh={onRefresh}
           readOnly
           pokingTodoId={pokingTodoId}
@@ -295,12 +377,13 @@ export default function TasksScreen() {
               title: item.todo.title,
             })
           }
+          sessionSections={sessionCalendarSections}
         />
       ) : null}
 
       {primaryTab === 'mine' && secondaryTab === 'done' ? (
         <DoneBoard
-          items={myDone.map((todo) => ({ todo }))}
+          items={myDoneFiltered.map((todo) => ({ todo }))}
           loading={myDoneQuery.isLoading}
           onRefresh={onRefresh}
           onReopen={(id) => reopenMutation.mutate(id)}
@@ -431,6 +514,7 @@ function CalendarBoard({
   readOnly,
   onPoke,
   pokingTodoId,
+  sessionSections,
 }: {
   sections: CalendarSection[];
   loading: boolean;
@@ -440,10 +524,43 @@ function CalendarBoard({
   readOnly?: boolean;
   onPoke?: (item: TaskItem) => void;
   pokingTodoId?: string | null;
+  sessionSections?: Array<{ key: string; title: string; subtitle: string; data: BodyDoubleSession[] }>;
 }) {
+  // Merge task sections with session sections, interleaved by key
+  const allSections = useMemo(() => {
+    const result: Array<{ key: string; title: string; subtitle: string; tasks: TaskItem[]; sessions: BodyDoubleSession[] }> = [];
+    const byKey = new Map<string, (typeof result)[0]>();
+
+    // Add task sections
+    for (const sec of sections) {
+      const entry = { key: sec.key, title: sec.title, subtitle: sec.subtitle, tasks: sec.data, sessions: [] as BodyDoubleSession[] };
+      byKey.set(sec.key, entry);
+      result.push(entry);
+    }
+
+    // Merge session sections — strip 'bd-' prefix to match task section keys
+    if (sessionSections) {
+      for (const ss of sessionSections) {
+        const dateKey = ss.key.replace(/^bd-/, '');
+        const existing = byKey.get(dateKey);
+        if (existing) {
+          existing.sessions = ss.data;
+        } else {
+          const entry = { key: ss.key, title: ss.title, subtitle: ss.subtitle, tasks: [], sessions: ss.data };
+          byKey.set(dateKey, entry);
+          result.push(entry);
+        }
+      }
+    }
+
+    return result;
+  }, [sections, sessionSections]);
+
+  const hasContent = allSections.length > 0;
+
   return (
     <FlatList
-      data={sections}
+      data={allSections}
       keyExtractor={(section) => section.key}
       contentContainerStyle={styles.list}
       refreshControl={
@@ -457,10 +574,10 @@ function CalendarBoard({
               <Text style={styles.calendarSubtitle}>{section.subtitle}</Text>
             </View>
             <View style={styles.calendarCountBadge}>
-              <Text style={styles.calendarCountText}>{section.data.length}</Text>
+              <Text style={styles.calendarCountText}>{section.tasks.length + section.sessions.length}</Text>
             </View>
           </View>
-          {section.data.map((item) => (
+          {section.tasks.map((item) => (
             <View key={`${item.owner?.id ?? 'mine'}-${item.todo.id}`}>
               {item.owner ? <Text style={styles.ownerBadge}>{item.owner.username ?? 'Friend'}</Text> : null}
               <TodoCard
@@ -474,10 +591,31 @@ function CalendarBoard({
               />
             </View>
           ))}
+          {section.sessions.map((session) => {
+            const acceptedCount = session.invitations?.filter((inv) => inv.status === 'accepted').length ?? 0;
+            const totalCount = session.invitations?.length ?? 0;
+            return (
+              <SessionCard
+                key={session.id}
+                requesterName={session.requester?.username ?? 'Someone'}
+                taskTitle={session.todo?.title}
+                scheduledAt={formatDateTimeInTimeZone(session.scheduled_at, undefined, {
+                  weekday: 'short',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                })}
+                status="scheduled"
+                inviteeCount={totalCount}
+                acceptedCount={acceptedCount}
+              />
+            );
+          })}
         </View>
       )}
       ListEmptyComponent={
-        !loading ? (
+        !loading && !hasContent ? (
           <EmptyState
             icon={<CalendarDays size={56} color={colors.accentLight} strokeWidth={1.6} />}
             title="Calendar is empty"
@@ -574,6 +712,91 @@ function TabStrip<T extends string>({
   );
 }
 
+function FilterBar({
+  urgencyFilter,
+  onUrgencyFilter,
+  tags,
+  selectedTagIds,
+  onToggleTag,
+  onClearTags,
+}: {
+  urgencyFilter: UrgencyFilter;
+  onUrgencyFilter: (value: UrgencyFilter) => void;
+  tags: Tag[];
+  selectedTagIds: string[];
+  onToggleTag: (tagId: string) => void;
+  onClearTags: () => void;
+}) {
+  return (
+    <View style={styles.filterCard}>
+      <View style={styles.filterHeaderRow}>
+        <Text style={styles.filterTitle}>Filter</Text>
+        {selectedTagIds.length > 0 ? (
+          <TouchableOpacity onPress={onClearTags}>
+            <Text style={styles.clearFilterText}>Clear tags</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
+      <Text style={styles.filterLabel}>Urgency</Text>
+      <View style={styles.filterChipRow}>
+        {(['all', 'A', 'B', 'C'] as UrgencyFilter[]).map((option) => {
+          const active = urgencyFilter === option;
+          const label = option === 'all' ? 'All' : PRIORITIES[option].short;
+          const color = option === 'all' ? colors.accentLight : PRIORITIES[option].color;
+          return (
+            <TouchableOpacity
+              key={option}
+              onPress={() => onUrgencyFilter(option)}
+              style={[
+                styles.filterChip,
+                {
+                  borderColor: color,
+                  backgroundColor: active ? `${color}2E` : 'transparent',
+                },
+              ]}
+            >
+              <Text style={[styles.filterChipText, { color: active ? color : colors.textMuted }]}>{label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      <Text style={styles.filterLabel}>Tags</Text>
+      {tags.length === 0 ? (
+        <Text style={styles.filterEmptyText}>No tags yet. Add tags while creating or editing a task.</Text>
+      ) : (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tagFilterScroll}
+        >
+          {tags.map((tag) => {
+            const active = selectedTagIds.includes(tag.id);
+            return (
+              <TouchableOpacity
+                key={tag.id}
+                onPress={() => onToggleTag(tag.id)}
+                style={[
+                  styles.filterChip,
+                  {
+                    borderColor: tag.color,
+                    backgroundColor: active ? `${tag.color}35` : 'transparent',
+                  },
+                ]}
+              >
+                <Text style={[styles.filterChipText, { color: active ? tag.color : colors.textMuted }]}>
+                  {tag.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
 function EmptyState({
   icon,
   title,
@@ -590,6 +813,21 @@ function EmptyState({
       <Text style={styles.emptyDescription}>{description}</Text>
     </View>
   );
+}
+
+function filterTodos(todos: Todo[], urgency: UrgencyFilter, selectedTagIDs: string[]): Todo[] {
+  return todos.filter((todo) => {
+    const urgencyMatches = urgency === 'all' || todo.priority === urgency;
+    if (!urgencyMatches) {
+      return false;
+    }
+
+    if (selectedTagIDs.length === 0) {
+      return true;
+    }
+
+    return todo.tags.some((tag) => selectedTagIDs.includes(tag.id));
+  });
 }
 
 function flattenFeed(feed: FriendFeedItem[]): TaskItem[] {
@@ -859,6 +1097,61 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     gap: 10,
+  },
+  filterCard: {
+    backgroundColor: colors.bg + '80',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 10,
+    gap: 8,
+  },
+  filterHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  filterTitle: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+  },
+  clearFilterText: {
+    color: colors.accentLight,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  filterLabel: {
+    color: colors.textDim,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  filterChipRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  filterChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  filterEmptyText: {
+    color: colors.textDim,
+    fontSize: 12,
+    fontStyle: 'italic',
+  },
+  tagFilterScroll: {
+    gap: 8,
+    paddingRight: 6,
   },
   statCard: {
     flex: 1,

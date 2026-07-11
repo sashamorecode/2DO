@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Users } from 'lucide-react-native';
 import { colors } from '../../../constants/colors';
 import { Screen } from '../../../components/ui/Screen';
 import { TodoForm } from '../../../components/todo/TodoForm';
@@ -48,6 +49,13 @@ export default function EditTodoScreen() {
   return (
     <Screen style={styles.screen}>
       <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => router.push(`/(app)/body-double/request?todoId=${id}`)}
+          style={styles.bdBtn}
+        >
+          <Users size={16} color={colors.accentLight} strokeWidth={2.2} />
+          <Text style={styles.bdText}>Request Body Double</Text>
+        </TouchableOpacity>
         <TouchableOpacity onPress={confirmDelete} style={styles.deleteBtn}>
           <Text style={styles.deleteText}>Delete task</Text>
         </TouchableOpacity>
@@ -57,6 +65,7 @@ export default function EditTodoScreen() {
           title: todo.title,
           description: todo.description,
           priority: todo.priority,
+          tagIds: todo.tags.map((tag) => tag.id),
           deadline: parseTodoDateInTimeZone(todo.deadline, timezone),
           deadlineHasTime: hasMeaningfulTodoTime(todo.deadline, 'end', timezone),
           plannedAt: parseTodoDateInTimeZone(todo.planned_at, timezone),
@@ -72,7 +81,19 @@ export default function EditTodoScreen() {
 
 const styles = StyleSheet.create({
   screen: { paddingHorizontal: 16, paddingTop: 12 },
-  header: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 12 },
+  header: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 12, gap: 8 },
+  bdBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: colors.accent + '22',
+    borderWidth: 1,
+    borderColor: colors.accent + '44',
+  },
+  bdText: { color: colors.accentLight, fontWeight: '700', fontSize: 13 },
   deleteBtn: {
     paddingHorizontal: 12,
     paddingVertical: 6,

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Alert, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -18,6 +18,7 @@ export default function LoginScreen() {
   const setAuth = useAuthStore((s) => s.setAuth);
   const router = useRouter();
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [devLoading, setDevLoading] = useState(false);
 
   const { control, handleSubmit, formState: { errors, isSubmitting } } = useForm<EmailForm>({
     resolver: zodResolver(emailSchema),
@@ -39,10 +40,25 @@ export default function LoginScreen() {
 
   async function onEmail(data: EmailForm) {
     try {
-      await authApi.startEmailOTP(data.email);
-      router.push({ pathname: '/(auth)/email-otp', params: { email: data.email } });
+      const res = await authApi.startEmailOTP(data.email);
+      router.push({
+        pathname: '/(auth)/email-otp',
+        params: { email: data.email, devCode: res.code ?? '' },
+      });
     } catch (e: any) {
       Alert.alert('Could Not Send Code', e?.response?.data?.error ?? 'Try again in a moment');
+    }
+  }
+
+  async function onDevLogin() {
+    setDevLoading(true);
+    try {
+      const res = await authApi.devLogin();
+      await setAuth(res.token, res.user);
+    } catch (e: any) {
+      Alert.alert('Dev Login Failed', e?.response?.data?.error ?? 'Is the backend running with DEV_MODE=true?');
+    } finally {
+      setDevLoading(false);
     }
   }
 
@@ -89,6 +105,20 @@ export default function LoginScreen() {
           )}
         />
         <Button title="Email me a code" onPress={handleSubmit(onEmail)} loading={isSubmitting} variant="secondary" />
+
+        <View style={styles.devDivider}>
+          <View style={styles.devDividerLine} />
+          <Text style={styles.devDividerText}>dev</Text>
+          <View style={styles.devDividerLine} />
+        </View>
+
+        <TouchableOpacity onPress={onDevLogin} disabled={devLoading} style={styles.devBtn}>
+          {devLoading ? (
+            <ActivityIndicator color={colors.textMuted} size="small" />
+          ) : (
+            <Text style={styles.devBtnText}>Dev Login</Text>
+          )}
+        </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -114,4 +144,18 @@ const styles = StyleSheet.create({
   divider: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, marginTop: 4 },
   dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
   dividerText: { color: colors.textMuted, marginHorizontal: 12, fontSize: 12, fontWeight: '600', letterSpacing: 1 },
+  devDivider: { flexDirection: 'row', alignItems: 'center', marginTop: 28, marginBottom: 12 },
+  devDividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
+  devDividerText: { color: '#d4a574', marginHorizontal: 12, fontSize: 10, fontWeight: '700', letterSpacing: 2, textTransform: 'uppercase' },
+  devBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderStyle: 'dashed',
+  },
+  devBtnText: { color: colors.textMuted, fontSize: 13, fontWeight: '600' },
 });

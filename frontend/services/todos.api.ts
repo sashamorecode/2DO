@@ -1,9 +1,11 @@
 import { api } from './api';
 import { Priority } from '../constants/priorities';
+import { Tag } from './tags.api';
 
 export interface Todo {
   id: string;
   user_id: string;
+  tags: Tag[];
   title: string;
   description: string;
   priority: Priority;
@@ -20,14 +22,24 @@ export interface CreateTodoInput {
   title: string;
   description?: string;
   priority: Priority;
+  tag_ids?: string[];
   deadline?: string | null;
   planned_at?: string | null;
   is_private?: boolean;
 }
 
 export const todosApi = {
-  list: (params?: { status?: string; priority?: string }) =>
-    api.get<Todo[]>('/todos', { params }).then((r) => r.data),
+  list: (params?: { status?: string; priority?: string; urgency?: string; tag_ids?: string[] }) =>
+    api
+      .get<Todo[]>('/todos', {
+        params: {
+          status: params?.status,
+          priority: params?.priority,
+          urgency: params?.urgency,
+          tag_ids: params?.tag_ids?.join(','),
+        },
+      })
+      .then((r) => r.data),
 
   get: (id: string) =>
     api.get<Todo>(`/todos/${id}`).then((r) => r.data),

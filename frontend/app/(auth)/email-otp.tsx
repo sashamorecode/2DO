@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Alert, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { colors } from '../../constants/colors';
@@ -8,11 +8,18 @@ import { authApi } from '../../services/auth.api';
 import { useAuthStore } from '../../store/authStore';
 
 export default function EmailOTPScreen() {
-  const params = useLocalSearchParams<{ email: string }>();
+  const params = useLocalSearchParams<{ email: string; devCode?: string }>();
   const email = params.email ?? '';
+  const devCode = params.devCode ?? '';
   const setAuth = useAuthStore((s) => s.setAuth);
 
-  const [code, setCode] = useState('');
+  const [code, setCode] = useState(devCode);
+
+  useEffect(() => {
+    if (devCode) {
+      setCode(devCode);
+    }
+  }, [devCode]);
   const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
 
@@ -56,6 +63,13 @@ export default function EmailOTPScreen() {
           We sent a 6-digit code to <Text style={styles.email}>{email}</Text>
         </Text>
 
+        {devCode !== '' && (
+          <View style={styles.devBanner}>
+            <Text style={styles.devBannerLabel}>DEV MODE — code:</Text>
+            <Text style={styles.devBannerCode}>{devCode}</Text>
+          </View>
+        )}
+
         <Input
           label="Code"
           value={code}
@@ -88,4 +102,16 @@ const styles = StyleSheet.create({
   resend: { marginTop: 24, alignItems: 'center' },
   resendText: { color: colors.textMuted, fontSize: 14 },
   resendBold: { color: colors.accentLight, fontWeight: '700' },
+  devBanner: {
+    backgroundColor: '#fef3c7',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  devBannerLabel: { color: '#92400e', fontSize: 14, fontWeight: '600' },
+  devBannerCode: { color: '#92400e', fontSize: 28, fontWeight: '900', letterSpacing: 4, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
 });

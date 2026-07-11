@@ -27,10 +27,14 @@ func Connect(dsn string) *gorm.DB {
 
 	if err := db.AutoMigrate(
 		&models.User{},
+		&models.Tag{},
 		&models.Todo{},
+		&models.TodoTag{},
 		&models.Friendship{},
 		&models.DeadlineNotification{},
 		&models.EmailOTP{},
+		&models.BodyDoubleSession{},
+		&models.BodyDoubleInvitation{},
 	); err != nil {
 		log.Fatalf("failed to run migrations: %v", err)
 	}

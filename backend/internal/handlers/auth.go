@@ -17,6 +17,7 @@ type AuthHandler struct {
 	googleAuds  []string
 	emailSvc    *services.EmailService
 	rateLimiter *services.EmailRateLimiter
+	devMode     bool
 }
 
 func NewAuthHandler(
@@ -25,6 +26,7 @@ func NewAuthHandler(
 	googleAuds []string,
 	emailSvc *services.EmailService,
 	rateLimiter *services.EmailRateLimiter,
+	devMode bool,
 ) *AuthHandler {
 	return &AuthHandler{
 		db:          db,
@@ -32,6 +34,7 @@ func NewAuthHandler(
 		googleAuds:  googleAuds,
 		emailSvc:    emailSvc,
 		rateLimiter: rateLimiter,
+		devMode:     devMode,
 	}
 }
 
@@ -90,6 +93,13 @@ func (h *AuthHandler) EmailStart(c *gin.Context) {
 		return
 	}
 
+	log.Printf("OTP for %s: %s", email, code)
+
+	if h.devMode {
+		c.JSON(http.StatusOK, gin.H{"ok": true, "code": code})
+		return
+	}
+
 	if err := h.emailSvc.SendOTP(email, code); err != nil {
 		log.Printf("send OTP failed for %s: %v", email, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to send code"})
@@ -102,6 +112,41 @@ func (h *AuthHandler) EmailStart(c *gin.Context) {
 type emailVerifyRequest struct {
 	Email string `json:"email" binding:"required,email"`
 	Code  string `json:"code" binding:"required,len=6"`
+}
+
+type devLoginRequest struct {
+	Email string `json:"email"`
+}
+
+func (h *AuthHandler) DevLogin(c *gin.Context) {
+	if !h.devMode {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+
+	var req devLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		req.Email = ""
+	}
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	if email == "" {
+		email = "dev@2do.local"
+	}
+
+	user, err := services.FindOrCreateByEmail(h.db, email)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to resolve user"})
+		return
+	}
+
+	token, err := services.GenerateToken(user.ID, h.jwtSecret)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
+		return
+	}
+
+	log.Printf("dev login: %s (user %s)", email, user.ID)
+	c.JSON(http.StatusOK, gin.H{"token": token, "user": user.ToMe()})
 }
 
 func (h *AuthHandler) EmailVerify(c *gin.Context) {

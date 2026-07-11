@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"time"
 
 	expo "github.com/oliveroneill/exponent-server-sdk-golang/sdk"
 )
@@ -82,6 +83,26 @@ func (s *NotificationService) SendTaskPoke(pushToken, fromUsername, todoTitle st
 
 func randomPokeTemplate() string {
 	return pokeNotificationTemplates[rand.Intn(len(pokeNotificationTemplates))]
+}
+
+func (s *NotificationService) SendBodyDoubleInvite(pushToken, fromUsername, todoTitle string, scheduledAt time.Time) error {
+	friendlyTime := scheduledAt.Format("Mon Jan 2 at 3:04 PM")
+	return s.send(
+		pushToken,
+		"🤝 Body Double Session",
+		fmt.Sprintf("%s invited you to a body doubling session for %q on %s", fromUsername, todoTitle, friendlyTime),
+	)
+}
+
+func (s *NotificationService) SendBodyDoubleResponse(pushToken, responderName, response string) error {
+	switch response {
+	case "accepted":
+		return s.send(pushToken, "✅ They're in!", fmt.Sprintf("%s accepted your body doubling invitation", responderName))
+	case "maybe":
+		return s.send(pushToken, "🤔 Maybe", fmt.Sprintf("%s might join your body doubling session", responderName))
+	default:
+		return nil
+	}
 }
 
 func (s *NotificationService) send(pushToken, title, body string) error {

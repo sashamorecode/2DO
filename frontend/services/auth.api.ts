@@ -22,10 +22,13 @@ export const authApi = {
     api.post<AuthResponse>('/auth/google', { id_token: idToken }).then((r) => r.data),
 
   startEmailOTP: (email: string) =>
-    api.post<{ ok: true }>('/auth/email/start', { email }).then((r) => r.data),
+    api.post<{ ok: true; code?: string }>('/auth/email/start', { email }).then((r) => r.data),
 
   verifyEmailOTP: (email: string, code: string) =>
     api.post<AuthResponse>('/auth/email/verify', { email, code }).then((r) => r.data),
+
+  devLogin: (email?: string) =>
+    api.post<AuthResponse>('/auth/dev-login', { email: email ?? '' }).then((r) => r.data),
 
   updateProfile: (input: string | UpdateProfileInput) => {
     const body = typeof input === 'string' ? { username: input } : input;

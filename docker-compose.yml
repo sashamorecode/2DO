@@ -22,11 +22,12 @@ services:
       dockerfile: Dockerfile.dev
     restart: unless-stopped
     ports:
-      - "9000:8080"
+      - "9000:9000"
     env_file:
       - ./backend/.env
     environment:
       DATABASE_URL: postgres://postgres:postgres@db:5432/twodo?sslmode=disable
+      DEV_MODE: "true"
     volumes:
       - ./backend:/app
     depends_on:

@@ -17,11 +17,13 @@ func Setup(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	notifSvc := services.NewNotificationService(cfg.ExpoAccessToken)
 	rateLimiter := services.NewEmailRateLimiter()
 
-	authH := handlers.NewAuthHandler(db, cfg.JWTSecret, cfg.GoogleClientIDs, emailSvc, rateLimiter)
+	authH := handlers.NewAuthHandler(db, cfg.JWTSecret, cfg.GoogleClientIDs, emailSvc, rateLimiter, cfg.DevMode)
 	userH := handlers.NewUserHandler(db)
 	todoH := handlers.NewTodoHandler(db, notifSvc)
+	tagH := handlers.NewTagHandler(db)
 	friendH := handlers.NewFriendHandler(db)
 	feedH := handlers.NewFeedHandler(db)
+	bodyDoubleH := handlers.NewBodyDoubleHandler(db, notifSvc)
 
 	r.GET("/health", func(c *gin.Context) { c.Status(200) })
 
@@ -32,6 +34,7 @@ func Setup(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	auth.POST("/google", authH.Google)
 	auth.POST("/email/start", authH.EmailStart)
 	auth.POST("/email/verify", authH.EmailVerify)
+	auth.POST("/dev-login", authH.DevLogin)
 
 	// Protected
 	protected := v1.Group("")
@@ -52,6 +55,12 @@ func Setup(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	todos.PATCH("/:id/reopen", todoH.Reopen)
 	todos.POST("/:id/poke", todoH.Poke)
 
+	tags := protected.Group("/tags")
+	tags.GET("", tagH.List)
+	tags.POST("", tagH.Create)
+	tags.PUT("/:id", tagH.Update)
+	tags.DELETE("/:id", tagH.Delete)
+
 	friends := protected.Group("/friends")
 	friends.GET("", friendH.ListFriends)
 	friends.GET("/requests", friendH.IncomingRequests)
@@ -62,6 +71,12 @@ func Setup(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	friends.DELETE("/:id", friendH.Remove)
 
 	protected.GET("/feed", feedH.GetFeed)
+
+	bodyDouble := protected.Group("/body-double")
+	bodyDouble.POST("/sessions", bodyDoubleH.CreateSession)
+	bodyDouble.GET("/sessions", bodyDoubleH.ListSessions)
+	bodyDouble.GET("/sessions/:id", bodyDoubleH.GetSession)
+	bodyDouble.PATCH("/invitations/:id/respond", bodyDoubleH.RespondToInvitation)
 
 	return r
 }

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -28,19 +29,39 @@ type todoRequest struct {
 	Deadline    *time.Time      `json:"deadline"`
 	PlannedAt   *time.Time      `json:"planned_at"`
 	IsPrivate   bool            `json:"is_private"`
+	TagIDs      []uuid.UUID     `json:"tag_ids"`
 }
 
 func (h *TodoHandler) List(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	var todos []models.Todo
 	status := c.Query("status")
-	q := h.db.Where("user_id = ?", userID)
+	q := h.db.Model(&models.Todo{}).Preload("Tags").Where("user_id = ?", userID)
 	if status != "" {
 		q = q.Where("status = ?", status)
 	}
-	if priority := c.Query("priority"); priority != "" {
+	priority := c.Query("priority")
+	if priority == "" {
+		var ok bool
+		priority, ok = parseUrgency(c.Query("urgency"))
+		if c.Query("urgency") != "" && !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid urgency"})
+			return
+		}
+	}
+	if priority != "" {
 		q = q.Where("priority = ?", priority)
 	}
+
+	tagIDs, err := parseTagIDs(c.Query("tag_ids"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid tag_ids"})
+		return
+	}
+	if len(tagIDs) > 0 {
+		q = q.Joins("JOIN todo_tags ON todo_tags.todo_id = todos.id").Where("todo_tags.tag_id IN ?", tagIDs).Group("todos.id")
+	}
+
 	if status == string(models.StatusCompleted) {
 		// Most recently finished first
 		q = q.Order("completed_at DESC NULLS LAST")
@@ -59,6 +80,13 @@ func (h *TodoHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	tags, err := h.findOwnedTags(userID, req.TagIDs)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "one or more tags are invalid"})
+		return
+	}
+
 	todo := models.Todo{
 		UserID:      userID,
 		Title:       req.Title,
@@ -69,7 +97,17 @@ func (h *TodoHandler) Create(c *gin.Context) {
 		IsPrivate:   req.IsPrivate,
 		Status:      models.StatusPending,
 	}
-	if err := h.db.Create(&todo).Error; err != nil {
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&todo).Error; err != nil {
+			return err
+		}
+		if len(tags) > 0 {
+			if err := tx.Model(&todo).Association("Tags").Replace(tags); err != nil {
+				return err
+			}
+		}
+		return tx.Preload("Tags").First(&todo, "id = ?", todo.ID).Error
+	}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create todo"})
 		return
 	}
@@ -96,13 +134,36 @@ func (h *TodoHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	tagsProvided := req.TagIDs != nil
+	var tags []models.Tag
+	var err error
+	if tagsProvided {
+		tags, err = h.findOwnedTags(userID, req.TagIDs)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "one or more tags are invalid"})
+			return
+		}
+	}
+
 	todo.Title = req.Title
 	todo.Description = req.Description
 	todo.Priority = req.Priority
 	todo.Deadline = req.Deadline
 	todo.PlannedAt = req.PlannedAt
 	todo.IsPrivate = req.IsPrivate
-	if err := h.db.Save(&todo).Error; err != nil {
+
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(&todo).Error; err != nil {
+			return err
+		}
+		if tagsProvided {
+			if err := tx.Model(&todo).Association("Tags").Replace(tags); err != nil {
+				return err
+			}
+		}
+		return tx.Preload("Tags").First(&todo, "id = ?", todo.ID).Error
+	}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update todo"})
 		return
 	}
@@ -132,6 +193,7 @@ func (h *TodoHandler) Complete(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to complete todo"})
 		return
 	}
+	h.db.Preload("Tags").First(&todo, "id = ?", todo.ID)
 	c.JSON(http.StatusOK, todo)
 }
 
@@ -147,6 +209,7 @@ func (h *TodoHandler) Reopen(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to reopen todo"})
 		return
 	}
+	h.db.Preload("Tags").First(&todo, "id = ?", todo.ID)
 	c.JSON(http.StatusOK, todo)
 }
 
@@ -227,11 +290,71 @@ func (h *TodoHandler) findOwned(c *gin.Context, userID uuid.UUID) (models.Todo, 
 		return models.Todo{}, false
 	}
 	var todo models.Todo
-	if err := h.db.Where("id = ? AND user_id = ?", id, userID).First(&todo).Error; err != nil {
+	if err := h.db.Preload("Tags").Where("id = ? AND user_id = ?", id, userID).First(&todo).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "todo not found"})
 		return models.Todo{}, false
 	}
 	return todo, true
+}
+
+func (h *TodoHandler) findOwnedTags(userID uuid.UUID, tagIDs []uuid.UUID) ([]models.Tag, error) {
+	if len(tagIDs) == 0 {
+		return []models.Tag{}, nil
+	}
+
+	uniq := make(map[uuid.UUID]struct{}, len(tagIDs))
+	ids := make([]uuid.UUID, 0, len(tagIDs))
+	for _, id := range tagIDs {
+		if id == uuid.Nil {
+			return nil, gorm.ErrRecordNotFound
+		}
+		if _, exists := uniq[id]; exists {
+			continue
+		}
+		uniq[id] = struct{}{}
+		ids = append(ids, id)
+	}
+
+	var tags []models.Tag
+	if err := h.db.Where("user_id = ? AND id IN ?", userID, ids).Find(&tags).Error; err != nil {
+		return nil, err
+	}
+	if len(tags) != len(ids) {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return tags, nil
+}
+
+func parseTagIDs(raw string) ([]uuid.UUID, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, nil
+	}
+	parts := strings.Split(trimmed, ",")
+	out := make([]uuid.UUID, 0, len(parts))
+	for _, part := range parts {
+		id, err := uuid.Parse(strings.TrimSpace(part))
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, nil
+}
+
+func parseUrgency(raw string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", "all":
+		return "", true
+	case "a", "high", "urgent":
+		return string(models.PriorityA), true
+	case "b", "medium", "med":
+		return string(models.PriorityB), true
+	case "c", "low":
+		return string(models.PriorityC), true
+	default:
+		return "", false
+	}
 }
 
 func (h *TodoHandler) areFriends(userID, otherUserID uuid.UUID) bool {

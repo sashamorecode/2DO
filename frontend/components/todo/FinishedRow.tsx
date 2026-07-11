@@ -4,6 +4,7 @@ import { CheckCircle2, RotateCcw, ChevronRight, Lock } from 'lucide-react-native
 import { colors } from '../../constants/colors';
 import { Todo } from '../../services/todos.api';
 import { PriorityBadge } from './PriorityBadge';
+import { TagChip } from './TagChip';
 import { formatDateTimeInTimeZone } from '../../services/timezone';
 import { useAuthStore } from '../../store/authStore';
 
@@ -37,6 +38,9 @@ export function FinishedRow({ todo, onReopen, onPress, ownerLabel }: Props) {
           </View>
           <View style={styles.meta}>
             <PriorityBadge priority={todo.priority} />
+            {todo.tags.map((tag) => (
+              <TagChip key={tag.id} tag={tag} />
+            ))}
             {ownerLabel ? <Text style={styles.ownerLabel}>{ownerLabel}</Text> : null}
             {finishedAt && (
               <Text style={styles.finishedAt}>

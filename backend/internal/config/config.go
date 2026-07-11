@@ -15,6 +15,7 @@ type Config struct {
 	Port                  string
 	WorkerIntervalMinutes int
 	ExpoAccessToken       string
+	DevMode               bool
 
 	GoogleClientIDs []string
 	ResendAPIKey    string
@@ -52,6 +53,7 @@ func Load() *Config {
 		GoogleClientIDs:       googleClientIDs,
 		ResendAPIKey:          os.Getenv("RESEND_API_KEY"),
 		EmailFrom:             getEnv("EMAIL_FROM", "2Do <onboarding@resend.dev>"),
+		DevMode:               strings.ToLower(os.Getenv("DEV_MODE")) == "true",
 	}
 }
 

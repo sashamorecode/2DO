@@ -7,8 +7,11 @@ import {
   ScrollView,
   Platform,
   Switch,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -20,11 +23,15 @@ import { Button } from '../ui/Button';
 import { CreateTodoInput } from '../../services/todos.api';
 import { serializeTodoDateInTimeZone } from '../../services/timezone';
 import { useAuthStore } from '../../store/authStore';
+import { tagsApi } from '../../services/tags.api';
+
+const TAG_COLOR_OPTIONS = ['#E07A91', '#E5B868', '#88B0A8', '#77A8D9', '#B48EFA', '#F38C63', '#7EC8E3', '#96D36D'];
 
 const schema = z.object({
   title: z.string().min(1, 'Title is required').max(255),
   description: z.string().optional(),
   priority: z.enum(['A', 'B', 'C']),
+  tagIds: z.array(z.string()),
   deadline: z.date().optional().nullable(),
   deadlineHasTime: z.boolean(),
   plannedAt: z.date().optional().nullable(),
@@ -32,12 +39,13 @@ const schema = z.object({
   isPrivate: z.boolean(),
 });
 
-type FormData = z.infer<typeof schema>;
+type FormData = z.input<typeof schema>;
 
 export interface TodoFormInitial {
   title?: string;
   description?: string;
   priority?: Priority;
+  tagIds?: string[];
   deadline?: Date | null;
   deadlineHasTime?: boolean;
   plannedAt?: Date | null;
@@ -54,12 +62,30 @@ interface Props {
 
 export function TodoForm({ initialValues, onSubmit, submitLabel = 'Save', loading }: Props) {
   const timezone = useAuthStore((s) => s.user?.timezone);
+  const queryClient = useQueryClient();
+  const [showTagCreator, setShowTagCreator] = useState(false);
+  const [newTagName, setNewTagName] = useState('');
+  const [newTagColor, setNewTagColor] = useState(TAG_COLOR_OPTIONS[0]);
+
+  const tagsQuery = useQuery({
+    queryKey: ['tags'],
+    queryFn: () => tagsApi.list(),
+  });
+
+  const createTagMutation = useMutation({
+    mutationFn: (payload: { name: string; color: string }) => tagsApi.create(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tags'] });
+    },
+  });
+
   const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
       title: initialValues?.title ?? '',
       description: initialValues?.description ?? '',
       priority: initialValues?.priority ?? 'B',
+      tagIds: initialValues?.tagIds ?? [],
       deadline: initialValues?.deadline ?? null,
       deadlineHasTime: initialValues?.deadlineHasTime ?? false,
       plannedAt: initialValues?.plannedAt ?? null,
@@ -73,6 +99,7 @@ export function TodoForm({ initialValues, onSubmit, submitLabel = 'Save', loadin
       title: data.title,
       description: data.description,
       priority: data.priority,
+      tag_ids: data.tagIds,
       deadline: data.deadline
         ? serializeTodoDateInTimeZone(data.deadline, data.deadlineHasTime, 'end', timezone)
         : null,
@@ -81,6 +108,36 @@ export function TodoForm({ initialValues, onSubmit, submitLabel = 'Save', loadin
         : null,
       is_private: data.isPrivate,
     });
+  }
+
+  const selectedTagIds = watch('tagIds') ?? [];
+
+  function toggleTag(tagID: string) {
+    const exists = selectedTagIds.includes(tagID);
+    setValue(
+      'tagIds',
+      exists ? selectedTagIds.filter((id) => id !== tagID) : [...selectedTagIds, tagID],
+      { shouldDirty: true }
+    );
+  }
+
+  async function createTag() {
+    const name = newTagName.trim();
+    if (!name) {
+      Alert.alert('Tag name required', 'Please enter a name for the new tag.');
+      return;
+    }
+
+    try {
+      const created = await createTagMutation.mutateAsync({ name, color: newTagColor });
+      if (!selectedTagIds.includes(created.id)) {
+        setValue('tagIds', [...selectedTagIds, created.id], { shouldDirty: true });
+      }
+      setNewTagName('');
+      setShowTagCreator(false);
+    } catch (error: any) {
+      Alert.alert('Could not create tag', error?.response?.data?.error ?? 'Try a different name.');
+    }
   }
 
   return (
@@ -143,6 +200,77 @@ export function TodoForm({ initialValues, onSubmit, submitLabel = 'Save', loadin
           </View>
         )}
       />
+
+      <Text style={styles.label}>Tags</Text>
+      <View style={styles.tagsPanel}>
+        {tagsQuery.isLoading ? (
+          <ActivityIndicator size="small" color={colors.accent} />
+        ) : tagsQuery.data && tagsQuery.data.length > 0 ? (
+          <View style={styles.tagsWrap}>
+            {tagsQuery.data.map((tag) => {
+              const selected = selectedTagIds.includes(tag.id);
+              return (
+                <TouchableOpacity
+                  key={tag.id}
+                  onPress={() => toggleTag(tag.id)}
+                  style={[
+                    styles.tagChoice,
+                    {
+                      borderColor: tag.color,
+                      backgroundColor: selected ? `${tag.color}30` : 'transparent',
+                    },
+                  ]}
+                >
+                  <View style={[styles.tagDot, { backgroundColor: tag.color }]} />
+                  <Text style={[styles.tagChoiceText, { color: selected ? tag.color : colors.textMuted }]}>
+                    {tag.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : (
+          <Text style={styles.emptyTagText}>No tags yet. Create one to organize tasks.</Text>
+        )}
+
+        <TouchableOpacity style={styles.tagCreateToggle} onPress={() => setShowTagCreator((v) => !v)}>
+          <Text style={styles.tagCreateToggleText}>{showTagCreator ? 'Cancel' : 'Create tag'}</Text>
+        </TouchableOpacity>
+
+        {showTagCreator ? (
+          <View style={styles.tagCreatorCard}>
+            <Input
+              label="Tag name"
+              value={newTagName}
+              onChangeText={setNewTagName}
+              placeholder="e.g. School, Work, Health"
+            />
+            <Text style={styles.smallLabel}>Color</Text>
+            <View style={styles.colorRow}>
+              {TAG_COLOR_OPTIONS.map((color) => {
+                const active = color === newTagColor;
+                return (
+                  <TouchableOpacity
+                    key={color}
+                    onPress={() => setNewTagColor(color)}
+                    style={[
+                      styles.colorSwatch,
+                      { backgroundColor: color, borderColor: active ? colors.text : colors.border },
+                      active && styles.colorSwatchActive,
+                    ]}
+                  />
+                );
+              })}
+            </View>
+            <Button
+              title="Add Tag"
+              onPress={createTag}
+              loading={createTagMutation.isPending}
+              style={styles.addTagBtn}
+            />
+          </View>
+        ) : null}
+      </View>
 
       <DateTimeField
         label="Due date (optional)"
@@ -301,6 +429,72 @@ const styles = StyleSheet.create({
   },
   priorityLabel: { fontWeight: '900', fontSize: 14 },
   priorityDesc: { fontSize: 10, textAlign: 'center' },
+  tagsPanel: {
+    marginBottom: 16,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 12,
+    gap: 10,
+  },
+  tagsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  tagChoice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  tagDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  tagChoiceText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  emptyTagText: {
+    color: colors.textDim,
+    fontSize: 12,
+    fontStyle: 'italic',
+  },
+  tagCreateToggle: {
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: colors.accentMuted,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: colors.surfaceAlt,
+  },
+  tagCreateToggleText: {
+    color: colors.accentLight,
+    fontWeight: '800',
+    fontSize: 12,
+  },
+  tagCreatorCard: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 10,
+    backgroundColor: colors.bg + '66',
+  },
+  smallLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 8 },
+  colorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 12 },
+  colorSwatch: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1.5,
+  },
+  colorSwatchActive: {
+    transform: [{ scale: 1.08 }],
+  },
+  addTagBtn: { marginTop: 2 },
   dateBtn: {
     backgroundColor: colors.surface,
     borderRadius: 12,

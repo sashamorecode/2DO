@@ -15,8 +15,9 @@ import { PRIORITIES } from '../../constants/priorities';
 import { Todo } from '../../services/todos.api';
 import { PriorityBadge } from './PriorityBadge';
 import { DeadlineBadge } from './DeadlineBadge';
+import { TagChip } from './TagChip';
 import { CompletionButton } from '../completion/CompletionButton';
-import { playCompletionSound } from '../completion/CompletionSound';
+
 import { celebrate } from '../completion/Celebration';
 
 interface Props {
@@ -80,7 +81,6 @@ export function TodoCard({
   }
 
   function handleComplete() {
-    playCompletionSound();
 
     // Phase 1 — anticipation: card grows, wiggles, holds opacity.
     scale.value = withSequence(
@@ -136,6 +136,13 @@ export function TodoCard({
               {todo.description ? (
                 <Text style={styles.desc} numberOfLines={1}>{todo.description}</Text>
               ) : null}
+              {todo.tags.length > 0 ? (
+                <View style={styles.tagsRow}>
+                  {todo.tags.map((tag) => (
+                    <TagChip key={tag.id} tag={tag} />
+                  ))}
+                </View>
+              ) : null}
               <View style={styles.meta}>
                 <PriorityBadge priority={todo.priority} />
                 <DeadlineBadge deadline={todo.deadline} />
@@ -183,6 +190,7 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   title: { color: colors.text, fontSize: 16, fontWeight: '600', flexShrink: 1 },
   desc: { color: colors.textMuted, fontSize: 13 },
+  tagsRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   meta: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
   actionChip: {
     minWidth: 72,

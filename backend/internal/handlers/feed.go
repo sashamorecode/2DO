@@ -73,6 +73,7 @@ func (h *FeedHandler) GetFeed(c *gin.Context) {
 	// Load friends' public todos for the requested status.
 	var todos []models.Todo
 	query := h.db.Preload("User").
+		Preload("Tags").
 		Where("user_id IN ? AND status = ? AND is_private = ?", friendIDs, status, false)
 
 	if status == models.StatusCompleted {

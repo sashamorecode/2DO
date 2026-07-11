@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Users, ListChecks, UserRound } from 'lucide-react-native';
+import { Users, ListChecks, UserRound, Inbox } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 import { AnimatedTabIcon } from '../../components/ui/AnimatedTabIcon';
 
@@ -52,8 +52,18 @@ export default function AppLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="inbox"
+        options={{
+          title: 'Inbox',
+          tabBarIcon: ({ color, focused }) => (
+            <AnimatedTabIcon Icon={Inbox} color={color} focused={focused} />
+          ),
+        }}
+      />
       <Tabs.Screen name="todo/new" options={{ href: null, title: 'New Task' }} />
       <Tabs.Screen name="todo/[id]" options={{ href: null, title: 'Edit Task' }} />
+      <Tabs.Screen name="body-double/request" options={{ href: null, title: 'Body Double' }} />
     </Tabs>
   );
 }
