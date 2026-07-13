@@ -17,6 +17,7 @@ import {
   Users as UsersIcon,
   CalendarDays,
   CheckCircle2,
+  SlidersHorizontal,
 } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 import { Screen } from '../../components/ui/Screen';
@@ -63,6 +64,7 @@ export default function TasksScreen() {
   const [secondaryTab, setSecondaryTab] = useState<SecondaryTab>('active');
   const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>('all');
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [filterVisible, setFilterVisible] = useState(false);
 
   const tagsQuery = useQuery({
     queryKey: ['tags'],
@@ -234,16 +236,6 @@ export default function TasksScreen() {
     [friendsDone]
   );
 
-  const stats = getStats({
-    primaryTab,
-    myPendingCount: myPendingFiltered.length,
-    myDoneCount: myDoneFiltered.length,
-    friendsPendingCount: countFeedTodos(friendsPending),
-    friendsDoneCount: countFeedTodos(friendsDone),
-    calendarCount:
-      primaryTab === 'mine' ? myCalendarSections.length : friendsCalendarSections.length,
-  });
-
   const title = primaryTab === 'mine' ? 'My Tasks' : 'Friends Tasks';
   const subtitle = getSubtitle(primaryTab, secondaryTab, user?.username ?? null);
 
@@ -308,28 +300,35 @@ export default function TasksScreen() {
         />
 
         {primaryTab === 'mine' ? (
-          <FilterBar
-            urgencyFilter={urgencyFilter}
-            onUrgencyFilter={setUrgencyFilter}
-            selectedTagIds={selectedTagIds}
-            tags={tags}
-            onToggleTag={(tagId) =>
-              setSelectedTagIds((prev) =>
-                prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
-              )
-            }
-            onClearTags={() => setSelectedTagIds([])}
-          />
+          <>
+            <TouchableOpacity
+              onPress={() => setFilterVisible((prev) => !prev)}
+              style={styles.filterToggle}
+            >
+              <SlidersHorizontal size={14} color={filterVisible ? colors.accent : colors.textMuted} />
+              <Text style={[styles.filterToggleText, filterVisible && styles.filterToggleTextActive]}>
+                Filter
+              </Text>
+              {(urgencyFilter !== 'all' || selectedTagIds.length > 0) ? (
+                <View style={styles.filterActiveDot} />
+              ) : null}
+            </TouchableOpacity>
+            {filterVisible ? (
+              <FilterBar
+                urgencyFilter={urgencyFilter}
+                onUrgencyFilter={setUrgencyFilter}
+                selectedTagIds={selectedTagIds}
+                tags={tags}
+                onToggleTag={(tagId) =>
+                  setSelectedTagIds((prev) =>
+                    prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
+                  )
+                }
+                onClearTags={() => setSelectedTagIds([])}
+              />
+            ) : null}
+          </>
         ) : null}
-
-        <View style={styles.statsRow}>
-          {stats.map((stat) => (
-            <View key={stat.label} style={styles.statCard}>
-              <Text style={styles.statValue}>{stat.value}</Text>
-              <Text style={styles.statLabel}>{stat.label}</Text>
-            </View>
-          ))}
-        </View>
       </View>
 
       {primaryTab === 'mine' && secondaryTab === 'active' ? (
@@ -834,10 +833,6 @@ function flattenFeed(feed: FriendFeedItem[]): TaskItem[] {
   return feed.flatMap((entry) => entry.todos.map((todo) => ({ todo, owner: entry.user })));
 }
 
-function countFeedTodos(feed: FriendFeedItem[]): number {
-  return feed.reduce((count, entry) => count + entry.todos.length, 0);
-}
-
 function sortByAnchorDate(todos: Todo[]): Todo[] {
   return [...todos].sort((left, right) => getAnchorTime(left) - getAnchorTime(right));
 }
@@ -870,36 +865,6 @@ function buildCalendarSections(items: TaskItem[], timezone?: string): CalendarSe
       subtitle: value.subtitle,
       data: value.data.sort((left, right) => getAnchorTime(left.todo) - getAnchorTime(right.todo)),
     }));
-}
-
-function getStats({
-  primaryTab,
-  myPendingCount,
-  myDoneCount,
-  friendsPendingCount,
-  friendsDoneCount,
-  calendarCount,
-}: {
-  primaryTab: PrimaryTab;
-  myPendingCount: number;
-  myDoneCount: number;
-  friendsPendingCount: number;
-  friendsDoneCount: number;
-  calendarCount: number;
-}) {
-  if (primaryTab === 'mine') {
-    return [
-      { label: 'Active', value: String(myPendingCount) },
-      { label: 'Calendar Days', value: String(calendarCount) },
-      { label: 'Done', value: String(myDoneCount) },
-    ];
-  }
-
-  return [
-    { label: 'Shared Now', value: String(friendsPendingCount) },
-    { label: 'Calendar Days', value: String(calendarCount) },
-    { label: 'Done', value: String(friendsDoneCount) },
-  ];
 }
 
 function getSubtitle(primaryTab: PrimaryTab, secondaryTab: SecondaryTab, username: string | null): string {
@@ -1094,10 +1059,6 @@ const styles = StyleSheet.create({
   tabButtonLabelActive: {
     color: colors.bg,
   },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
   filterCard: {
     backgroundColor: colors.bg + '80',
     borderRadius: 16,
@@ -1153,28 +1114,31 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingRight: 6,
   },
-  statCard: {
-    flex: 1,
-    backgroundColor: colors.bg + '72',
-    borderRadius: 18,
-    paddingVertical: 12,
+  filterToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
     paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: colors.bg + '80',
     borderWidth: 1,
     borderColor: colors.border,
-    gap: 2,
   },
-  statValue: {
-    color: colors.text,
-    fontSize: 22,
-    fontWeight: '900',
-    letterSpacing: -0.5,
-  },
-  statLabel: {
-    color: colors.textDim,
-    fontSize: 11,
+  filterToggleText: {
+    color: colors.textMuted,
+    fontSize: 12,
     fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
+  },
+  filterToggleTextActive: {
+    color: colors.accent,
+  },
+  filterActiveDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: colors.accent,
   },
   list: {
     paddingHorizontal: 16,
