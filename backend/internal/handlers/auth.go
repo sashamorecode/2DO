@@ -93,9 +93,8 @@ func (h *AuthHandler) EmailStart(c *gin.Context) {
 		return
 	}
 
-	log.Printf("OTP for %s: %s", email, code)
-
 	if h.devMode {
+		log.Printf("OTP for %s: %s", email, code)
 		c.JSON(http.StatusOK, gin.H{"ok": true, "code": code})
 		return
 	}

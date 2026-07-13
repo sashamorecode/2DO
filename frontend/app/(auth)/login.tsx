@@ -106,19 +106,23 @@ export default function LoginScreen() {
         />
         <Button title="Email me a code" onPress={handleSubmit(onEmail)} loading={isSubmitting} variant="secondary" />
 
-        <View style={styles.devDivider}>
-          <View style={styles.devDividerLine} />
-          <Text style={styles.devDividerText}>dev</Text>
-          <View style={styles.devDividerLine} />
-        </View>
+        {__DEV__ && (
+          <>
+            <View style={styles.devDivider}>
+              <View style={styles.devDividerLine} />
+              <Text style={styles.devDividerText}>dev</Text>
+              <View style={styles.devDividerLine} />
+            </View>
 
-        <TouchableOpacity onPress={onDevLogin} disabled={devLoading} style={styles.devBtn}>
-          {devLoading ? (
-            <ActivityIndicator color={colors.textMuted} size="small" />
-          ) : (
-            <Text style={styles.devBtnText}>Dev Login</Text>
-          )}
-        </TouchableOpacity>
+            <TouchableOpacity onPress={onDevLogin} disabled={devLoading} style={styles.devBtn}>
+              {devLoading ? (
+                <ActivityIndicator color={colors.textMuted} size="small" />
+              ) : (
+                <Text style={styles.devBtnText}>Dev Login</Text>
+              )}
+            </TouchableOpacity>
+          </>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
