@@ -26,7 +26,7 @@ type Todo struct {
 	ID          uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
 	UserID      uuid.UUID  `gorm:"type:uuid;not null;index" json:"user_id"`
 	User        *User      `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	Tags        []Tag      `gorm:"many2many:todo_tags;constraint:OnDelete:CASCADE;" json:"tags,omitempty"`
+	Tags        []Tag      `gorm:"many2many:todo_tags;constraint:OnDelete:CASCADE;" json:"tags"`
 	Title       string     `gorm:"not null;size:255" json:"title"`
 	Description string     `gorm:"type:text" json:"description"`
 	Priority    Priority   `gorm:"type:varchar(1);not null" json:"priority"`
