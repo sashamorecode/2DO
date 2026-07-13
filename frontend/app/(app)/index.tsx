@@ -264,11 +264,9 @@ export default function TasksScreen() {
       <View style={styles.heroCard}>
         <View style={styles.heroGlowLarge} />
         <View style={styles.heroGlowSmall} />
-        <Text style={styles.heroKicker}>Task Room</Text>
         <View style={styles.heroTopRow}>
           <View style={styles.heroTextBlock}>
             <Text style={styles.heroTitle}>{title}</Text>
-            <Text style={styles.heroSubtitle}>{subtitle}</Text>
           </View>
           {primaryTab === 'mine' ? (
             <TouchableOpacity onPress={() => router.push('/(app)/todo/new')} style={styles.addBtn}>
@@ -948,7 +946,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 16,
     marginBottom: 12,
-    padding: 18,
+    padding: 8,
     borderRadius: 28,
     backgroundColor: colors.surface,
     borderWidth: 1,
