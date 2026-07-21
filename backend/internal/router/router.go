@@ -24,6 +24,7 @@ func Setup(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	friendH := handlers.NewFriendHandler(db)
 	feedH := handlers.NewFeedHandler(db)
 	bodyDoubleH := handlers.NewBodyDoubleHandler(db, notifSvc)
+	syncH := handlers.NewSyncHandler(db)
 
 	r.GET("/health", func(c *gin.Context) { c.Status(200) })
 
@@ -77,6 +78,8 @@ func Setup(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	bodyDouble.GET("/sessions", bodyDoubleH.ListSessions)
 	bodyDouble.GET("/sessions/:id", bodyDoubleH.GetSession)
 	bodyDouble.PATCH("/invitations/:id/respond", bodyDoubleH.RespondToInvitation)
+
+	protected.POST("/sync", syncH.Sync)
 
 	return r
 }
