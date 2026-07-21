@@ -61,4 +61,9 @@ export const todosApi = {
 
   poke: (id: string) =>
     api.post<{ ok: boolean }>(`/todos/${id}/poke`).then((r) => r.data),
+
+  sync: (todos: any[], tags: any[]) =>
+    api
+      .post<{ todos: Todo[]; tags: Tag[] }>('/sync', { todos, tags })
+      .then((r) => r.data),
 };
