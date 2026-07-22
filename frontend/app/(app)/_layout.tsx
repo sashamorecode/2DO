@@ -28,7 +28,7 @@ export default function AppLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          headerShown: false,
+        title: 'Tasks',
           tabBarIcon: ({ color, focused }) => (
             <AnimatedTabIcon Icon={ListChecks} color={color} focused={focused} />
           ),
@@ -37,7 +37,7 @@ export default function AppLayout() {
       <Tabs.Screen
         name="social"
         options={{
-          headerShown: false,
+            title: 'Social',
           tabBarIcon: ({ color, focused }) => (
             <AnimatedTabIcon Icon={Users} color={color} focused={focused} />
           ),
@@ -46,7 +46,7 @@ export default function AppLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          headerShown: false,
+        title: "Profile",
           tabBarIcon: ({ color, focused }) => (
             <AnimatedTabIcon Icon={UserRound} color={color} focused={focused} />
           ),
@@ -55,7 +55,7 @@ export default function AppLayout() {
       <Tabs.Screen
         name="inbox"
         options={{
-          headerShown: false,
+          title: "Inbox",
           tabBarIcon: ({ color, focused }) => (
             <AnimatedTabIcon Icon={Inbox} color={color} focused={focused} />
           ),

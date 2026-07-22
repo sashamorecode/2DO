@@ -1,18 +1,29 @@
 import React from 'react';
 import { View, Text, StyleSheet, Alert, ScrollView } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { WifiOff } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 import { Screen } from '../../components/ui/Screen';
 import { FriendCard } from '../../components/friends/FriendCard';
 import { FriendRequestCard } from '../../components/friends/FriendRequestCard';
 import { FriendSearch } from '../../components/friends/FriendSearch';
 import { friendsApi, FriendItem, FriendRequest } from '../../services/friends.api';
+import { useOfflineStore } from '../../store/offlineStore';
 
 export default function SocialScreen() {
   const qc = useQueryClient();
+  const isOnline = useOfflineStore((s) => s.isOnline);
 
-  const { data: friends = [] } = useQuery({ queryKey: ['friends'], queryFn: friendsApi.list });
-  const { data: incoming = [] } = useQuery({ queryKey: ['friends-incoming'], queryFn: friendsApi.incoming });
+  const { data: friends = [] } = useQuery({
+    queryKey: ['friends'],
+    queryFn: friendsApi.list,
+    enabled: isOnline,
+  });
+  const { data: incoming = [] } = useQuery({
+    queryKey: ['friends-incoming'],
+    queryFn: friendsApi.incoming,
+    enabled: isOnline,
+  });
 
   const acceptMutation = useMutation({
     mutationFn: friendsApi.accept,
@@ -34,6 +45,15 @@ export default function SocialScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
+        {!isOnline ? (
+          <View style={styles.offlineBanner}>
+            <WifiOff size={16} color={colors.warning} strokeWidth={2.2} />
+            <Text style={styles.offlineBannerText}>
+              You're offline — friend management is unavailable.
+            </Text>
+          </View>
+        ) : null}
+
         <Section title="Add Friends">
           <FriendSearch onSendRequest={(id) => sendRequestMutation.mutate(id)} />
         </Section>
@@ -118,4 +138,21 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   emptyText: { color: colors.textMuted, fontSize: 14, fontStyle: 'italic' },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: colors.warning + '18',
+    borderWidth: 1,
+    borderColor: colors.warning + '33',
+    marginBottom: 12,
+  },
+  offlineBannerText: {
+    color: colors.warning,
+    fontSize: 13,
+    fontWeight: '700',
+    flex: 1,
+  },
 });

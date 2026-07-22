@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Alert, ScrollView, RefreshControl } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { WifiOff } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 import { Screen } from '../../components/ui/Screen';
 import { FriendRequestCard } from '../../components/friends/FriendRequestCard';
@@ -9,10 +10,12 @@ import { friendsApi, FriendRequest } from '../../services/friends.api';
 import { bodyDoubleApi, BodyDoubleSession } from '../../services/bodyDouble.api';
 import { formatDateTimeInTimeZone } from '../../services/timezone';
 import { useAuthStore } from '../../store/authStore';
+import { useOfflineStore } from '../../store/offlineStore';
 
 export default function InboxScreen() {
   const qc = useQueryClient();
   const timezone = useAuthStore((s) => s.user?.timezone);
+  const isOnline = useOfflineStore((s) => s.isOnline);
 
   const {
     data: incoming = [],
@@ -21,6 +24,7 @@ export default function InboxScreen() {
   } = useQuery({
     queryKey: ['friends-incoming'],
     queryFn: friendsApi.incoming,
+    enabled: isOnline,
   });
 
   const {
@@ -30,6 +34,7 @@ export default function InboxScreen() {
   } = useQuery({
     queryKey: ['body-double-sessions', 'invitee'],
     queryFn: () => bodyDoubleApi.listSessions('invitee'),
+    enabled: isOnline,
   });
 
   // Extract pending invitations from sessions
@@ -103,7 +108,16 @@ export default function InboxScreen() {
           />
         }
       >
-        {!hasContent && !isLoading && (
+        {!isOnline ? (
+          <View style={styles.offlineBanner}>
+            <WifiOff size={16} color={colors.warning} strokeWidth={2.2} />
+            <Text style={styles.offlineBannerText}>
+              You're offline — inbox is unavailable.
+            </Text>
+          </View>
+        ) : null}
+
+        {!hasContent && !isLoading && isOnline && (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyTitle}>All clear!</Text>
             <Text style={styles.emptySub}>
@@ -222,5 +236,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     paddingHorizontal: 40,
+  },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: colors.warning + '18',
+    borderWidth: 1,
+    borderColor: colors.warning + '33',
+    marginBottom: 12,
+  },
+  offlineBannerText: {
+    color: colors.warning,
+    fontSize: 13,
+    fontWeight: '700',
+    flex: 1,
   },
 });

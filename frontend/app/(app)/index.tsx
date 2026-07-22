@@ -18,6 +18,8 @@ import {
   CalendarDays,
   CheckCircle2,
   SlidersHorizontal,
+  WifiOff,
+  CloudOff,
 } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 import { Screen } from '../../components/ui/Screen';
@@ -31,6 +33,8 @@ import { useAuthStore } from '../../store/authStore';
 import { PRIORITIES, PRIORITY_ORDER } from '../../constants/priorities';
 import { SessionCard } from '../../components/bodyDouble/SessionCard';
 import { formatDateTimeInTimeZone } from '../../services/timezone';
+import { useOfflineStore } from '../../store/offlineStore';
+import { useOfflineTodoOps } from '../../services/todos.api.offline';
 
 type PrimaryTab = 'mine' | 'friends';
 type SecondaryTab = 'active' | 'calendar' | 'done';
@@ -60,6 +64,12 @@ export default function TasksScreen() {
   const user = useAuthStore((state) => state.user);
   const timezone = user?.timezone;
 
+  const isOnline = useOfflineStore((s) => s.isOnline);
+  const pendingChanges = useOfflineStore((s) => s.pendingChanges);
+
+  // Offline-aware todo operations (local-first: cache updated before API call).
+  const offlineOps = useOfflineTodoOps(queryClient, user?.id ?? '');
+
   const [primaryTab, setPrimaryTab] = useState<PrimaryTab>('mine');
   const [secondaryTab, setSecondaryTab] = useState<SecondaryTab>('active');
   const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>('all');
@@ -87,14 +97,14 @@ export default function TasksScreen() {
   const friendsPendingQuery = useQuery({
     queryKey: ['feed', 'pending'],
     queryFn: () => feedApi.get({ status: 'pending' }),
-    enabled: primaryTab === 'friends' && (secondaryTab === 'active' || secondaryTab === 'calendar'),
+    enabled: primaryTab === 'friends' && (secondaryTab === 'active' || secondaryTab === 'calendar') && isOnline,
     refetchInterval: 30_000,
   });
 
   const friendsDoneQuery = useQuery({
     queryKey: ['feed', 'completed'],
     queryFn: () => feedApi.get({ status: 'completed' }),
-    enabled: primaryTab === 'friends' && secondaryTab === 'done',
+    enabled: primaryTab === 'friends' && secondaryTab === 'done' && isOnline,
     refetchInterval: 30_000,
   });
 
@@ -105,40 +115,13 @@ export default function TasksScreen() {
   });
 
   const completeMutation = useMutation({
-    mutationFn: (id: string) => todosApi.complete(id),
-    onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: ['todos', 'pending'] });
-      const prev = queryClient.getQueryData<Todo[]>(['todos', 'pending']);
-      queryClient.setQueryData<Todo[]>(['todos', 'pending'], (old) => old?.filter((todo) => todo.id !== id) ?? []);
-      return { prev };
-    },
-    onError: (_error, _id, ctx) => {
-      queryClient.setQueryData(['todos', 'pending'], ctx?.prev);
-      Alert.alert('Error', 'Failed to complete task');
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['todos'] });
-    },
+    mutationFn: (id: string) => offlineOps.completeTodo(id),
+    // Optimistic removal is handled inside completeTodo (local-first).
   });
 
   const reopenMutation = useMutation({
-    mutationFn: (id: string) => todosApi.reopen(id),
-    onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: ['todos', 'completed'] });
-      const prev = queryClient.getQueryData<Todo[]>(['todos', 'completed']);
-      queryClient.setQueryData<Todo[]>(
-        ['todos', 'completed'],
-        (old) => old?.filter((todo) => todo.id !== id) ?? []
-      );
-      return { prev };
-    },
-    onError: (_error, _id, ctx) => {
-      queryClient.setQueryData(['todos', 'completed'], ctx?.prev);
-      Alert.alert('Error', 'Could not reactivate this task');
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['todos'] });
-    },
+    mutationFn: (id: string) => offlineOps.reopenTodo(id),
+    // Optimistic removal is handled inside reopenTodo (local-first).
   });
 
   const pokeMutation = useMutation({
@@ -266,7 +249,20 @@ export default function TasksScreen() {
         <View style={styles.heroGlowSmall} />
         <View style={styles.heroTopRow}>
           <View style={styles.heroTextBlock}>
-            <Text style={styles.heroTitle}>{title}</Text>
+            <View style={styles.heroTitleRow}>
+              <Text style={styles.heroTitle}>{title}</Text>
+              {!isOnline ? (
+                <View style={styles.offlineBadge}>
+                  <WifiOff size={12} color={colors.warning} strokeWidth={2.5} />
+                  <Text style={styles.offlineBadgeText}>Offline</Text>
+                </View>
+              ) : pendingChanges > 0 ? (
+                <View style={styles.syncBadge}>
+                  <CloudOff size={12} color={colors.accentLight} strokeWidth={2.5} />
+                  <Text style={styles.syncBadgeText}>{pendingChanges} pending</Text>
+                </View>
+              ) : null}
+            </View>
           </View>
           {primaryTab === 'mine' ? (
             <TouchableOpacity onPress={() => router.push('/(app)/todo/new')} style={styles.addBtn}>
@@ -340,13 +336,21 @@ export default function TasksScreen() {
       ) : null}
 
       {primaryTab === 'friends' && secondaryTab === 'active' ? (
-        <FriendsBoard
-          feed={friendsActiveGroups}
-          loading={friendsPendingQuery.isLoading}
-          onRefresh={onRefresh}
-          pokingTodoId={pokingTodoId}
-          onPoke={(todoId, ownerName, title) => pokeMutation.mutate({ todoId, ownerName, title })}
-        />
+        <>
+          {!isOnline ? (
+            <View style={styles.offlineBanner}>
+              <WifiOff size={16} color={colors.warning} strokeWidth={2.2} />
+              <Text style={styles.offlineBannerText}>You're offline — friends' tasks can't be loaded.</Text>
+            </View>
+          ) : null}
+          <FriendsBoard
+            feed={friendsActiveGroups}
+            loading={friendsPendingQuery.isLoading}
+            onRefresh={onRefresh}
+            pokingTodoId={pokingTodoId}
+            onPoke={(todoId, ownerName, title) => pokeMutation.mutate({ todoId, ownerName, title })}
+          />
+        </>
       ) : null}
 
       {primaryTab === 'mine' && secondaryTab === 'calendar' ? (
@@ -1278,5 +1282,62 @@ const styles = StyleSheet.create({
     fontSize: 15,
     textAlign: 'center',
     lineHeight: 21,
+  },
+  heroTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  offlineBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: colors.warning + '22',
+    borderWidth: 1,
+    borderColor: colors.warning + '44',
+  },
+  offlineBadgeText: {
+    color: colors.warning,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  syncBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: colors.accent + '22',
+    borderWidth: 1,
+    borderColor: colors.accent + '44',
+  },
+  syncBadgeText: {
+    color: colors.accentLight,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: colors.warning + '18',
+    borderWidth: 1,
+    borderColor: colors.warning + '33',
+  },
+  offlineBannerText: {
+    color: colors.warning,
+    fontSize: 13,
+    fontWeight: '700',
+    flex: 1,
   },
 });

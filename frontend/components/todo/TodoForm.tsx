@@ -24,6 +24,8 @@ import { CreateTodoInput } from '../../services/todos.api';
 import { serializeTodoDateInTimeZone } from '../../services/timezone';
 import { useAuthStore } from '../../store/authStore';
 import { tagsApi } from '../../services/tags.api';
+import { useOfflineTagOps } from '../../services/tags.api.offline';
+import { useOfflineStore } from '../../store/offlineStore';
 
 const TAG_COLOR_OPTIONS = ['#E07A91', '#E5B868', '#88B0A8', '#77A8D9', '#B48EFA', '#F38C63', '#7EC8E3', '#96D36D'];
 
@@ -62,7 +64,10 @@ interface Props {
 
 export function TodoForm({ initialValues, onSubmit, submitLabel = 'Save', loading }: Props) {
   const timezone = useAuthStore((s) => s.user?.timezone);
+  const userId = useAuthStore((s) => s.user?.id) ?? '';
   const queryClient = useQueryClient();
+  const refreshPending = useOfflineStore((s) => s.refreshPending);
+  const { createTag: createTagOffline } = useOfflineTagOps(queryClient, userId);
   const [showTagCreator, setShowTagCreator] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState(TAG_COLOR_OPTIONS[0]);
@@ -73,9 +78,10 @@ export function TodoForm({ initialValues, onSubmit, submitLabel = 'Save', loadin
   });
 
   const createTagMutation = useMutation({
-    mutationFn: (payload: { name: string; color: string }) => tagsApi.create(payload),
+    mutationFn: (payload: { name: string; color: string }) => createTagOffline(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tags'] });
+      refreshPending();
     },
   });
 
