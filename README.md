@@ -73,7 +73,7 @@ cd frontend && npx expo start --port 9081
 | `JWT_SECRET` | `change-me-in-production` | **Change this** |
 | `PORT` | `9000` | Port the Go server listens on |
 | `WORKER_INTERVAL_MINUTES` | `5` | How often the deadline checker worker runs |
-| `EXPO_ACCESS_TOKEN` | _(empty)_ | Expo push token — optional for local dev |
+| `EXPO_ACCESS_TOKEN` | _(empty)_ | Optional — only authenticates requests to Expo's Push API (required by Expo when enhanced push security is enabled). Does **not** disable push when left empty |
 | `GOOGLE_CLIENT_IDS` | _(empty)_ | Comma-separated list of allowed OAuth 2.0 client IDs (iOS, Android, Web) used to verify Google ID tokens |
 | `RESEND_API_KEY` | _(empty)_ | Resend API key for sending OTP emails |
 | `EMAIL_FROM` | `2Do <onboarding@resend.dev>` | "From" address on OTP emails. Use Resend's sandbox sender for dev; switch to a verified domain for prod |
@@ -292,4 +292,6 @@ Uses [Expo Push Notification Service](https://docs.expo.dev/push-notifications/o
 2. Set `EXPO_ACCESS_TOKEN` in `backend/.env`.
 3. The background worker checks for overdue todos every `WORKER_INTERVAL_MINUTES` and pushes reminders.
 
-Leaving `EXPO_ACCESS_TOKEN` empty disables push notifications without breaking anything else.
+`EXPO_ACCESS_TOKEN` is optional. It only authenticates requests to Expo's Push API — and is only required if you've enabled [enhanced push security](https://docs.expo.dev/push-notifications/sending-notifications/#enhanced-security) for your Expo account. Leaving it empty does **not** disable push.
+
+For production delivery you additionally need platform credentials (Android FCM `google-services.json` / iOS APNs) and an EAS project id. On-device local reminders work without any of these.

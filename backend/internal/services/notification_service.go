@@ -105,15 +105,26 @@ func (s *NotificationService) SendBodyDoubleResponse(pushToken, responderName, r
 	}
 }
 
+func maskToken(s string) string {
+	if s == "" {
+		return ""
+	}
+	if len(s) <= 12 {
+		return s
+	}
+	return s[:8] + "..." + s[len(s)-4:]
+}
+
 func (s *NotificationService) send(pushToken, title, body string) error {
 	if pushToken == "" {
+		log.Printf("push skipped: empty push token")
 		return nil
 	}
 
 	token, err := expo.NewExponentPushToken(pushToken)
 	if err != nil {
-		log.Printf("invalid push token %q: %v", pushToken, err)
-		return nil
+		log.Printf("invalid push token %s: %v", maskToken(pushToken), err)
+		return fmt.Errorf("invalid push token %s: %w", maskToken(pushToken), err)
 	}
 
 	resp, err := s.client.Publish(&expo.PushMessage{
@@ -127,7 +138,8 @@ func (s *NotificationService) send(pushToken, title, body string) error {
 	}
 
 	if err := resp.ValidateResponse(); err != nil {
-		log.Printf("expo push response error for token %s: %v", pushToken, err)
+		log.Printf("expo push response error for token %s: %v", maskToken(pushToken), err)
+		return fmt.Errorf("expo push response error for token %s: %w", maskToken(pushToken), err)
 	}
 
 	return nil

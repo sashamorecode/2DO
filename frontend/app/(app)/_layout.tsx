@@ -2,8 +2,10 @@ import { Tabs } from 'expo-router';
 import { Users, ListChecks, UserRound, Inbox } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 import { AnimatedTabIcon } from '../../components/ui/AnimatedTabIcon';
+import { useTodoReminderSync } from '../../hooks/useTodoReminderSync';
 
 export default function AppLayout() {
+  useTodoReminderSync();
   return (
     <Tabs
       initialRouteName="index"

@@ -10,6 +10,7 @@ import { Button } from '../../components/ui/Button';
 import { authApi } from '../../services/auth.api';
 import { useAuthStore } from '../../store/authStore';
 import { signOutGoogle } from '../../services/googleSignIn';
+import { presentTestNotification } from '../../services/notifications';
 
 const schema = z.object({
   username: z
@@ -95,6 +96,21 @@ export default function ProfileScreen() {
             <Button title="Edit Username" variant="secondary" onPress={() => setEditing(true)} />
           </>
         )}
+
+        <View style={{ height: 32 }} />
+        <Text style={styles.label}>Notifications</Text>
+        <Button
+          title="Send test notification"
+          variant="secondary"
+          onPress={async () => {
+            try {
+              await presentTestNotification();
+              Alert.alert('Test scheduled', 'A test notification will appear in about 3 seconds.');
+            } catch (e) {
+              Alert.alert('Test failed', String((e as Error)?.message ?? e));
+            }
+          }}
+        />
 
         <View style={{ height: 48 }} />
         <Button title="Log Out" variant="danger" onPress={onLogout} />
