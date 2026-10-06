@@ -147,14 +147,18 @@ async function doSync(userId: string, todos: Todo[]): Promise<void> {
 
 let chain: Promise<void> = Promise.resolve();
 
-export function syncTodoReminders(userId: string, todos: Todo[] | undefined): Promise<void> {
-  if (todos === undefined) return Promise.resolve();
-  const run = chain.then(() => doSync(userId, todos));
+function enqueue(task: () => Promise<void>): Promise<void> {
+  const run = chain.then(task);
   chain = run.catch(() => {});
   return run;
 }
 
-export async function cancelUserReminders(userId: string): Promise<void> {
+export function syncTodoReminders(userId: string, todos: Todo[] | undefined): Promise<void> {
+  if (todos === undefined) return Promise.resolve();
+  return enqueue(() => doSync(userId, todos));
+}
+
+async function doCancelUserReminders(userId: string): Promise<void> {
   try {
     const scheduled = await Notifications.getAllScheduledNotificationsAsync();
     await Promise.all(
@@ -169,8 +173,17 @@ export async function cancelUserReminders(userId: string): Promise<void> {
   }
 }
 
+// Serialized with syncTodoReminders so an in-flight sync (e.g. from a cache
+// change just before logout) can never reschedule reminders after cancellation.
+export function cancelUserReminders(userId: string): Promise<void> {
+  return enqueue(() => doCancelUserReminders(userId));
+}
+
 export async function presentTestNotification(): Promise<void> {
-  await ensureNotificationSetup();
+  const ready = await ensureNotificationSetup();
+  if (!ready) {
+    throw new Error('Notification permission is not granted.');
+  }
   await Notifications.scheduleNotificationAsync({
     identifier: 'todo-reminder-test',
     content: {

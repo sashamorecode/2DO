@@ -14,8 +14,14 @@ export function useNotifications() {
 
   useEffect(() => {
     if (!token) return;
-    void ensureNotificationSetup();
-    if (canRegisterRemote) void registerForPushNotifications(token);
+    void (async () => {
+      // Request permission/channel setup first; remote registration checks
+      // permission and would otherwise bail before the prompt resolves.
+      const granted = await ensureNotificationSetup();
+      if (granted && canRegisterRemote) {
+        await registerForPushNotifications(token);
+      }
+    })();
   }, [token]);
 }
 

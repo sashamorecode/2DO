@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -275,8 +276,9 @@ func (h *TodoHandler) Poke(c *gin.Context) {
 	}
 
 	if err := h.notif.SendTaskPoke(ownerPushToken, senderName, todo.Title); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to send poke"})
-		return
+		// Best-effort: the recipient's token may be stale. Don't fail the poke
+		// request itself; surface the delivery failure in the logs instead.
+		log.Printf("task poke notification failed for todo %s: %v", todo.ID, err)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"ok": true})
