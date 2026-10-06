@@ -44,7 +44,9 @@ export function useTodoReminderSync() {
 
     run();
 
-    const unsub = qc.getQueryCache().subscribe(() => {
+    const unsub = qc.getQueryCache().subscribe((event) => {
+      const key = event?.query?.queryKey;
+      if (!key || key[0] !== 'todos' || key[1] !== 'pending') return;
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         timer = null;

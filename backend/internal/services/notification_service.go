@@ -110,7 +110,7 @@ func maskToken(s string) string {
 		return ""
 	}
 	if len(s) <= 12 {
-		return s
+		return "***"
 	}
 	return s[:8] + "..." + s[len(s)-4:]
 }
@@ -123,8 +123,9 @@ func (s *NotificationService) send(pushToken, title, body string) error {
 
 	token, err := expo.NewExponentPushToken(pushToken)
 	if err != nil {
-		log.Printf("invalid push token %s: %v", maskToken(pushToken), err)
-		return fmt.Errorf("invalid push token %s: %w", maskToken(pushToken), err)
+		// Log only the error type: the SDK error text can embed the token.
+		log.Printf("invalid push token %s (%T)", maskToken(pushToken), err)
+		return fmt.Errorf("invalid push token %s", maskToken(pushToken))
 	}
 
 	resp, err := s.client.Publish(&expo.PushMessage{
@@ -138,8 +139,9 @@ func (s *NotificationService) send(pushToken, title, body string) error {
 	}
 
 	if err := resp.ValidateResponse(); err != nil {
-		log.Printf("expo push response error for token %s: %v", maskToken(pushToken), err)
-		return fmt.Errorf("expo push response error for token %s: %w", maskToken(pushToken), err)
+		// Log only the error type: the SDK error text can embed the token.
+		log.Printf("expo push rejected token %s (%T)", maskToken(pushToken), err)
+		return fmt.Errorf("expo push rejected token %s", maskToken(pushToken))
 	}
 
 	return nil

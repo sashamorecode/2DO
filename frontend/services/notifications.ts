@@ -102,6 +102,7 @@ export async function ensureNotificationSetup(): Promise<boolean> {
 }
 
 async function doSync(userId: string, todos: Todo[]): Promise<void> {
+  if (Platform.OS === 'web') return;
   try {
     const desired = desiredReminders(todos, userId);
     const scheduled = await Notifications.getAllScheduledNotificationsAsync();
@@ -111,35 +112,38 @@ async function doSync(userId: string, todos: Todo[]): Promise<void> {
 
     const desiredById = new Map(desired.map((d) => [d.identifier, d]));
 
-    for (const existing of ours) {
-      const wanted = desiredById.get(existing.identifier);
-      if (!wanted) {
-        await Notifications.cancelScheduledNotificationAsync(existing.identifier);
-        continue;
-      }
-      if (existing.content.data.signature !== wanted.data.signature) {
-        await Notifications.cancelScheduledNotificationAsync(existing.identifier);
-      }
-    }
+    await Promise.all(
+      ours
+        .filter((existing) => {
+          const wanted = desiredById.get(existing.identifier);
+          return !wanted || existing.content.data.signature !== wanted.data.signature;
+        })
+        .map((existing) => Notifications.cancelScheduledNotificationAsync(existing.identifier))
+    );
 
-    for (const d of desired) {
-      const existing = ours.find((n) => n.identifier === d.identifier);
-      if (existing && existing.content.data.signature === d.data.signature) continue;
-      await Notifications.scheduleNotificationAsync({
-        identifier: d.identifier,
-        content: {
-          title: d.title,
-          body: d.body,
-          sound: 'default',
-          data: { ...d.data },
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DATE,
-          date: new Date(d.at),
-          channelId: Platform.OS === 'android' ? REMINDER_CHANNEL_ID : undefined,
-        },
-      });
-    }
+    await Promise.all(
+      desired
+        .filter((d) => {
+          const existing = ours.find((n) => n.identifier === d.identifier);
+          return !existing || existing.content.data.signature !== d.data.signature;
+        })
+        .map((d) =>
+          Notifications.scheduleNotificationAsync({
+            identifier: d.identifier,
+            content: {
+              title: d.title,
+              body: d.body,
+              sound: 'default',
+              data: { ...d.data },
+            },
+            trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.DATE,
+              date: new Date(d.at),
+              channelId: Platform.OS === 'android' ? REMINDER_CHANNEL_ID : undefined,
+            },
+          })
+        )
+    );
   } catch (e) {
     console.warn('[notifications] Failed to sync reminders:', e);
   }
@@ -159,6 +163,7 @@ export function syncTodoReminders(userId: string, todos: Todo[] | undefined): Pr
 }
 
 async function doCancelUserReminders(userId: string): Promise<void> {
+  if (Platform.OS === 'web') return;
   try {
     const scheduled = await Notifications.getAllScheduledNotificationsAsync();
     await Promise.all(
