@@ -1,18 +1,21 @@
 import { useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../store/authStore';
-import { syncTodoReminders, cancelUserReminders, ensureNotificationSetup } from '../services/notifications';
+import {
+  syncTodoReminders,
+  cancelUserReminders,
+  ensureNotificationSetup,
+  isRemotePushConfigured,
+} from '../services/notifications';
 import { Todo } from '../services/todos.api';
 
 /**
  * Reconciles on-device reminders with the local-first `['todos', 'pending']`
- * cache. Reminders are account-scoped and cancelled on logout.
+ * cache. Reminders are account-scoped and cancelled on logout/account switch.
  *
- * NOTE: these local reminders cover the same owner do-date/due-date cases that
- * the backend deadline worker also pushes (Stage 1). Remote push is currently
- * unconfigured (no EAS projectId/FCM), so only local reminders fire. If remote
- * push is enabled later, disable the backend Stage-1 owner notifications to
- * avoid sending both.
+ * When remote Expo push is configured, the backend owns owner reminders and
+ * this coordinator clears any local ones instead of scheduling (no duplicates).
  */
 export function useTodoReminderSync() {
   const qc = useQueryClient();
@@ -39,25 +42,27 @@ export function useTodoReminderSync() {
     }
     lastUserId.current = userId;
 
+    // Remote push owns owner reminders when configured; make sure no local
+    // duplicates linger and skip scheduling.
+    if (isRemotePushConfigured()) {
+      void cancelUserReminders(userId);
+      return;
+    }
+
     let timer: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
-    let ready = false;
 
     const run = () => {
-      if (!ready) return;
       const todos = qc.getQueryData<Todo[]>(['todos', 'pending']);
       if (todos === undefined) return;
-      void syncTodoReminders(userId, todos);
+      // Re-check setup on every run rather than caching it: permission may be
+      // granted later (via the test button or system settings).
+      void ensureNotificationSetup().then((granted) => {
+        if (!cancelled && granted) void syncTodoReminders(userId, todos);
+      });
     };
 
-    // Ensure permission/channel exist before the first sync. Child effects run
-    // before the parent AuthGuard's, so we cannot rely on useNotifications
-    // having created the Android channel already.
-    void ensureNotificationSetup().then((granted) => {
-      if (cancelled) return;
-      ready = granted;
-      if (granted) run();
-    });
+    run();
 
     const unsub = qc.getQueryCache().subscribe((event) => {
       const key = event?.query?.queryKey;
@@ -69,10 +74,16 @@ export function useTodoReminderSync() {
       }, 250);
     });
 
+    // Re-run when returning to the foreground in case permission changed.
+    const appStateSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') run();
+    });
+
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
       unsub();
+      appStateSub.remove();
     };
   }, [isLoaded, token, userId, qc]);
 }

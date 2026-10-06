@@ -60,7 +60,7 @@ export const todosApi = {
     api.patch<Todo>(`/todos/${id}/reopen`).then((r) => r.data),
 
   poke: (id: string) =>
-    api.post<{ ok: boolean }>(`/todos/${id}/poke`).then((r) => r.data),
+    api.post<{ ok: boolean; delivered?: boolean }>(`/todos/${id}/poke`).then((r) => r.data),
 
   sync: (todos: any[], tags: any[]) =>
     api

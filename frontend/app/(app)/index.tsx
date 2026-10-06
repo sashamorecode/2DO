@@ -126,8 +126,15 @@ export default function TasksScreen() {
 
   const pokeMutation = useMutation({
     mutationFn: ({ todoId }: PokeTaskInput) => todosApi.poke(todoId),
-    onSuccess: (_data, variables) => {
+    onSuccess: (data, variables) => {
       const ownerName = variables.ownerName ?? 'your friend';
+      if (data.delivered === false) {
+        Alert.alert(
+          'Poke not delivered',
+          `${ownerName}'s notifications may be off, so the poke couldn't be sent.`
+        );
+        return;
+      }
       Alert.alert('Poke sent', `${ownerName} got a reminder for "${variables.title}".`);
     },
     onError: (error: any) => {

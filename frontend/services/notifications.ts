@@ -1,9 +1,29 @@
 import { Platform } from 'react-native';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Todo } from './todos.api';
 
 export const REMINDER_CHANNEL_ID = 'todo-reminders';
 const NAMESPACE = 'todo-reminder';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function getConfiguredProjectId(): string | undefined {
+  const candidates: (string | undefined)[] = [
+    process.env.EXPO_PUBLIC_EAS_PROJECT_ID,
+    Constants.expoConfig?.extra?.eas?.projectId,
+    Constants.easConfig?.projectId,
+  ];
+  return candidates.find((c): c is string => typeof c === 'string' && UUID_RE.test(c));
+}
+
+// Remote Expo push is unavailable in Expo Go and on web. When it *is* available
+// the backend owns owner reminders, so local reminders must stay off to avoid
+// sending both.
+export function isRemotePushConfigured(): boolean {
+  if (Platform.OS === 'web') return false;
+  if (Constants.executionEnvironment === ExecutionEnvironment.StoreClient) return false;
+  return getConfiguredProjectId() !== undefined;
+}
 
 async function getUserScheduledNotifications(userId: string) {
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
@@ -85,7 +105,7 @@ export function desiredReminders(todos: Todo[], userId: string, now = Date.now()
   return out;
 }
 
-export async function ensureNotificationSetup(): Promise<boolean> {
+async function doEnsureNotificationSetup(): Promise<boolean> {
   if (Platform.OS === 'web') return false;
 
   try {
@@ -97,16 +117,28 @@ export async function ensureNotificationSetup(): Promise<boolean> {
       });
     }
 
-    const existing = await Notifications.getPermissionsAsync();
-    if (existing.status !== 'granted') {
-      const req = await Notifications.requestPermissionsAsync();
-      return req.status === 'granted';
+    let { status } = await Notifications.getPermissionsAsync();
+    if (status === 'undetermined') {
+      status = (await Notifications.requestPermissionsAsync()).status;
     }
-    return true;
+    return status === 'granted';
   } catch (e) {
     console.warn('[notifications] Notification setup failed:', e);
     return false;
   }
+}
+
+let setupInFlight: Promise<boolean> | null = null;
+
+// Coalesces concurrent callers (useNotifications and useTodoReminderSync both
+// call this on first render) so permission is requested at most once at a time.
+export function ensureNotificationSetup(): Promise<boolean> {
+  if (!setupInFlight) {
+    setupInFlight = doEnsureNotificationSetup().finally(() => {
+      setupInFlight = null;
+    });
+  }
+  return setupInFlight;
 }
 
 async function settleAll(phase: string, tasks: Promise<unknown>[]): Promise<void> {

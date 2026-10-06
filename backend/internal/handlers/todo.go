@@ -275,13 +275,15 @@ func (h *TodoHandler) Poke(c *gin.Context) {
 		ownerPushToken = *owner.PushToken
 	}
 
+	delivered := ownerPushToken != ""
 	if err := h.notif.SendTaskPoke(ownerPushToken, senderName, todo.Title); err != nil {
 		// Best-effort: the recipient's token may be stale. Don't fail the poke
-		// request itself; surface the delivery failure in the logs instead.
+		// request itself, but report the delivery outcome to the caller.
 		log.Printf("task poke notification failed for todo %s: %v", todo.ID, err)
+		delivered = false
 	}
 
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	c.JSON(http.StatusOK, gin.H{"ok": true, "delivered": delivered})
 }
 
 func (h *TodoHandler) findOwned(c *gin.Context, userID uuid.UUID) (models.Todo, bool) {

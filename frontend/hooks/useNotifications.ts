@@ -4,7 +4,7 @@ import * as Notifications from 'expo-notifications';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
-import { ensureNotificationSetup } from '../services/notifications';
+import { ensureNotificationSetup, getConfiguredProjectId } from '../services/notifications';
 
 const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 const canRegisterRemote = Platform.OS !== 'web' && !isExpoGo;
@@ -32,13 +32,7 @@ async function registerForPushNotifications(token: string) {
     const { status } = await Notifications.getPermissionsAsync();
     if (status !== 'granted') return;
 
-    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const candidates: (string | undefined)[] = [
-      process.env.EXPO_PUBLIC_EAS_PROJECT_ID,
-      Constants.expoConfig?.extra?.eas?.projectId,
-      Constants.easConfig?.projectId,
-    ];
-    const projectId = candidates.find((c): c is string => typeof c === 'string' && UUID_RE.test(c));
+    const projectId = getConfiguredProjectId();
     if (!projectId) {
       console.warn('[notifications] No valid EAS projectId; remote push disabled. Set EXPO_PUBLIC_EAS_PROJECT_ID.');
       return;
