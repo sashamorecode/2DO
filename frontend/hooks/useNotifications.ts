@@ -7,17 +7,21 @@ import {
   ensureNotificationSetup,
   getConfiguredProjectId,
   isRemotePushConfigured,
+  setRemotePushRegistered,
 } from '../services/notifications';
 
-// Avoid redundant PUTs when re-checking on foreground.
-let lastRegisteredPushToken: string | null = null;
+// Dedupe and coalesce registration, keyed by the auth token so a direct
+// account switch never reuses the previous account's registration.
+let lastRegistered: { authToken: string; pushToken: string } | null = null;
+let inFlight: { authToken: string; promise: Promise<void> } | null = null;
 
 export function useNotifications() {
   const token = useAuthStore((s) => s.token);
 
   useEffect(() => {
     if (!token) {
-      lastRegisteredPushToken = null;
+      lastRegistered = null;
+      setRemotePushRegistered(false);
       return;
     }
 
@@ -41,18 +45,36 @@ export function useNotifications() {
   }, [token]);
 }
 
-async function registerForPushNotifications(token: string) {
+function registerForPushNotifications(token: string): Promise<void> {
+  if (inFlight && inFlight.authToken === token) return inFlight.promise;
+  const promise = doRegister(token).finally(() => {
+    if (inFlight?.promise === promise) inFlight = null;
+  });
+  inFlight = { authToken: token, promise };
+  return promise;
+}
+
+async function doRegister(token: string) {
   try {
     const projectId = getConfiguredProjectId();
-    if (!projectId) return;
+    if (!projectId) {
+      setRemotePushRegistered(false);
+      return;
+    }
 
     const { data: pushToken } = await Notifications.getExpoPushTokenAsync({ projectId });
     if (useAuthStore.getState().token !== token) return;
-    if (lastRegisteredPushToken === pushToken) return;
+
+    if (lastRegistered?.authToken === token && lastRegistered.pushToken === pushToken) {
+      setRemotePushRegistered(true);
+      return;
+    }
 
     await api.put('/me/push-token', { token: pushToken });
-    lastRegisteredPushToken = pushToken;
+    lastRegistered = { authToken: token, pushToken };
+    setRemotePushRegistered(true);
   } catch (e) {
+    setRemotePushRegistered(false);
     // Log only a safe summary: an Axios error here would carry the push token
     // and bearer token in its config.
     console.error(

@@ -25,6 +25,19 @@ export function isRemotePushConfigured(): boolean {
   return getConfiguredProjectId() !== undefined;
 }
 
+let remotePushRegistered = false;
+
+export function setRemotePushRegistered(registered: boolean): void {
+  remotePushRegistered = registered;
+}
+
+// True only when remote push is configured *and* a token was actually
+// registered this session. If registration fails (e.g. missing FCM/APNs),
+// local reminders remain the source of truth.
+export function isRemotePushActive(): boolean {
+  return isRemotePushConfigured() && remotePushRegistered;
+}
+
 async function getUserScheduledNotifications(userId: string) {
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
   return scheduled.filter(
@@ -105,6 +118,8 @@ export function desiredReminders(todos: Todo[], userId: string, now = Date.now()
   return out;
 }
 
+let permissionRequested = false;
+
 async function doEnsureNotificationSetup(): Promise<boolean> {
   if (Platform.OS === 'web') return false;
 
@@ -118,7 +133,10 @@ async function doEnsureNotificationSetup(): Promise<boolean> {
     }
 
     let { status } = await Notifications.getPermissionsAsync();
-    if (status === 'undetermined') {
+    if (status === 'undetermined' && !permissionRequested) {
+      // Only auto-prompt once per session; a dismissed Android dialog can leave
+      // the status undetermined and we don't want to nag on every sync.
+      permissionRequested = true;
       status = (await Notifications.requestPermissionsAsync()).status;
     }
     return status === 'granted';

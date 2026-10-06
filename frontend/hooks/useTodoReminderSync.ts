@@ -6,7 +6,7 @@ import {
   syncTodoReminders,
   cancelUserReminders,
   ensureNotificationSetup,
-  isRemotePushConfigured,
+  isRemotePushActive,
 } from '../services/notifications';
 import { Todo } from '../services/todos.api';
 
@@ -42,13 +42,6 @@ export function useTodoReminderSync() {
     }
     lastUserId.current = userId;
 
-    // Remote push owns owner reminders when configured; make sure no local
-    // duplicates linger and skip scheduling.
-    if (isRemotePushConfigured()) {
-      void cancelUserReminders(userId);
-      return;
-    }
-
     let timer: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
 
@@ -58,7 +51,14 @@ export function useTodoReminderSync() {
       // Re-check setup on every run rather than caching it: permission may be
       // granted later (via the test button or system settings).
       void ensureNotificationSetup().then((granted) => {
-        if (!cancelled && granted) void syncTodoReminders(userId, todos);
+        if (cancelled || !granted) return;
+        if (isRemotePushActive()) {
+          // Remote push actually registered and owns owner reminders; clear any
+          // local ones so the user is not notified twice.
+          void cancelUserReminders(userId);
+          return;
+        }
+        void syncTodoReminders(userId, todos);
       });
     };
 
