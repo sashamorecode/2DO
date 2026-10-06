@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -226,6 +226,11 @@ export default function TasksScreen() {
     [friendsDone]
   );
 
+  const openFriendTodo = useCallback(
+    (todo: Todo) => router.push(`/(app)/todo/friend/${todo.id}`),
+    [router]
+  );
+
   const title = primaryTab === 'mine' ? 'My Tasks' : 'Friends Tasks';
   const subtitle = getSubtitle(primaryTab, secondaryTab, user?.username ?? null);
 
@@ -354,7 +359,7 @@ export default function TasksScreen() {
             feed={friendsActiveGroups}
             loading={friendsPendingQuery.isLoading}
             onRefresh={onRefresh}
-            onOpen={(todo) => router.push(`/(app)/todo/friend/${todo.id}`)}
+            onOpen={openFriendTodo}
             pokingTodoId={pokingTodoId}
             onPoke={(todoId, ownerName, title) => pokeMutation.mutate({ todoId, ownerName, title })}
           />
@@ -378,7 +383,7 @@ export default function TasksScreen() {
           loading={friendsPendingQuery.isLoading || bodyDoubleSessionsQuery.isLoading}
           onRefresh={onRefresh}
           readOnly
-          onPress={(todo) => router.push(`/(app)/todo/friend/${todo.id}`)}
+          onPress={openFriendTodo}
           pokingTodoId={pokingTodoId}
           onPoke={(item) =>
             pokeMutation.mutate({
@@ -407,7 +412,7 @@ export default function TasksScreen() {
           loading={friendsDoneQuery.isLoading}
           onRefresh={onRefresh}
           readOnly
-          onPress={(todo) => router.push(`/(app)/todo/friend/${todo.id}`)}
+          onPress={openFriendTodo}
         />
       ) : null}
     </Screen>

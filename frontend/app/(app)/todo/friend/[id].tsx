@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
 import {
   CalendarDays,
   CheckCircle2,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react-native';
 import { colors } from '../../../../constants/colors';
 import { Screen } from '../../../../components/ui/Screen';
+import { Avatar } from '../../../../components/ui/Avatar';
 import { PriorityBadge } from '../../../../components/todo/PriorityBadge';
 import { TagChip } from '../../../../components/todo/TagChip';
 import { feedApi } from '../../../../services/feed.api';
@@ -30,7 +32,7 @@ export default function FriendTodoScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const timezone = useAuthStore((s) => s.user?.timezone);
 
-  const { data, isLoading, isError, refetch, isRefetching } = useQuery({
+  const { data, isLoading, isError, error, refetch, isRefetching } = useQuery({
     queryKey: ['friend-todo', id],
     queryFn: () => feedApi.getTodo(id!),
     enabled: !!id,
@@ -45,11 +47,16 @@ export default function FriendTodoScreen() {
   }
 
   if (isError || !data) {
+    const offline = isAxiosError(error) && !error.response;
     return (
       <Screen style={styles.centered}>
-        <Text style={styles.errorTitle}>Task unavailable</Text>
+        <Text style={styles.errorTitle}>
+          {offline ? "Couldn't load task" : 'Task unavailable'}
+        </Text>
         <Text style={styles.errorText}>
-          It may have been made private or removed.
+          {offline
+            ? 'Check your connection and try again.'
+            : 'It may have been made private or removed.'}
         </Text>
         <TouchableOpacity
           onPress={() => refetch()}
@@ -66,7 +73,6 @@ export default function FriendTodoScreen() {
 
   const { todo, owner } = data;
   const ownerName = owner.username ?? 'Friend';
-  const initials = ownerName.slice(0, 2).toUpperCase();
 
   const dueText = todo.deadline
     ? formatTodoDate(todo.deadline, 'end', timezone)
@@ -88,9 +94,7 @@ export default function FriendTodoScreen() {
     <Screen>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.ownerRow}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials}</Text>
-          </View>
+          <Avatar username={ownerName} size={44} textColor={colors.accentLight} />
           <View style={styles.ownerTextBlock}>
             <Text style={styles.ownerLabel}>Shared by</Text>
             <Text style={styles.ownerName}>{ownerName}</Text>
@@ -223,17 +227,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.accent + '33',
-    borderWidth: 1,
-    borderColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: { color: colors.accentLight, fontWeight: '800', fontSize: 15 },
   ownerTextBlock: { flex: 1 },
   ownerLabel: {
     color: colors.textDim,

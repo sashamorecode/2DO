@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { colors } from '../../constants/colors';
+import { Avatar } from '../ui/Avatar';
 
 interface Props {
   username: string;
@@ -9,12 +10,9 @@ interface Props {
 }
 
 export function FriendRequestCard({ username, onAccept, onDecline }: Props) {
-  const initials = username.slice(0, 2).toUpperCase();
   return (
     <View style={styles.card}>
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{initials}</Text>
-      </View>
+      <Avatar username={username} size={36} />
       <Text style={styles.name}>{username}</Text>
       <View style={styles.actions}>
         <TouchableOpacity style={[styles.btn, styles.acceptBtn]} onPress={onAccept}>
@@ -40,17 +38,6 @@ const styles = StyleSheet.create({
     borderColor: colors.accent + '55',
     gap: 10,
   },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.accent + '33',
-    borderWidth: 1,
-    borderColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: { color: colors.accent, fontWeight: '700', fontSize: 13 },
   name: { flex: 1, color: colors.text, fontSize: 15, fontWeight: '600' },
   actions: { flexDirection: 'row', gap: 8 },
   btn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
