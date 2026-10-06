@@ -24,7 +24,7 @@ import { TagChip } from '../../../../components/todo/TagChip';
 import { feedApi } from '../../../../services/feed.api';
 import {
   formatDateTimeInTimeZone,
-  hasMeaningfulTodoTime,
+  formatTodoDateInTimeZone,
 } from '../../../../services/timezone';
 import { useAuthStore } from '../../../../store/authStore';
 
@@ -75,10 +75,10 @@ export default function FriendTodoScreen() {
   const ownerName = owner.username ?? 'Friend';
 
   const dueText = todo.deadline
-    ? formatTodoDate(todo.deadline, 'end', timezone)
+    ? formatTodoDateInTimeZone(todo.deadline, timezone, 'end')
     : null;
   const doText = todo.planned_at
-    ? formatTodoDate(todo.planned_at, 'morning', timezone)
+    ? formatTodoDateInTimeZone(todo.planned_at, timezone, 'morning')
     : null;
   const completedText = todo.completed_at
     ? formatDateTimeInTimeZone(todo.completed_at, timezone, {
@@ -156,32 +156,6 @@ export default function FriendTodoScreen() {
         </View>
       </ScrollView>
     </Screen>
-  );
-}
-
-function formatTodoDate(
-  iso: string,
-  defaultTime: 'morning' | 'end',
-  timezone?: string | null
-): string {
-  const withTime = hasMeaningfulTodoTime(iso, defaultTime, timezone);
-  return formatDateTimeInTimeZone(
-    iso,
-    timezone,
-    withTime
-      ? {
-          weekday: 'short',
-          month: 'short',
-          day: 'numeric',
-          hour: 'numeric',
-          minute: '2-digit',
-        }
-      : {
-          weekday: 'short',
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-        }
   );
 }
 

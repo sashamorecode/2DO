@@ -359,7 +359,7 @@ export default function TasksScreen() {
             feed={friendsActiveGroups}
             loading={friendsPendingQuery.isLoading}
             onRefresh={onRefresh}
-            onOpen={openFriendTodo}
+            onPress={openFriendTodo}
             pokingTodoId={pokingTodoId}
             onPoke={(todoId, ownerName, title) => pokeMutation.mutate({ todoId, ownerName, title })}
           />
@@ -473,14 +473,14 @@ function FriendsBoard({
   feed,
   loading,
   onRefresh,
-  onOpen,
+  onPress,
   onPoke,
   pokingTodoId,
 }: {
   feed: FriendFeedItem[];
   loading: boolean;
   onRefresh: () => void;
-  onOpen: (todo: Todo) => void;
+  onPress: (todo: Todo) => void;
   onPoke: (todoId: string, ownerName: string | null | undefined, title: string) => void;
   pokingTodoId: string | null;
 }) {
@@ -503,7 +503,7 @@ function FriendsBoard({
               key={todo.id}
               todo={todo}
               readOnly
-              onPress={onOpen}
+              onPress={onPress}
               actionTitle="Poke"
               actionLoading={pokingTodoId === todo.id}
               onActionPress={() => onPoke(todo.id, item.user.username, todo.title)}

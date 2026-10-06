@@ -100,6 +100,34 @@ export function formatDateTimeInTimeZone(
   }).format(date);
 }
 
+// Renders a todo's deadline/do date, including the time only when it was
+// meaningfully set (see hasMeaningfulTodoTime).
+export function formatTodoDateInTimeZone(
+  iso: string,
+  timezone: string | null | undefined,
+  defaultTime: TodoDefaultTime
+): string {
+  const withTime = hasMeaningfulTodoTime(iso, defaultTime, timezone);
+  return formatDateTimeInTimeZone(
+    iso,
+    timezone,
+    withTime
+      ? {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+        }
+      : {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        }
+  );
+}
+
 function getZonedParts(date: Date, timezone: string): ZonedParts {
   const formatted = new Intl.DateTimeFormat('en-CA', {
     ...zonedPartsFormatOptions,
