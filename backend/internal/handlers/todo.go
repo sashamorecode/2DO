@@ -243,7 +243,12 @@ func (h *TodoHandler) Poke(c *gin.Context) {
 		return
 	}
 
-	if !areFriends(h.db, userID, todo.UserID) {
+	friends, err := areFriends(h.db, userID, todo.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify friendship"})
+		return
+	}
+	if !friends {
 		c.JSON(http.StatusForbidden, gin.H{"error": "you can only poke a friend's task"})
 		return
 	}

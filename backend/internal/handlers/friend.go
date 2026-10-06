@@ -137,15 +137,20 @@ func (h *FriendHandler) Remove(c *gin.Context) {
 
 // areFriends reports whether two users have an accepted friendship in either
 // direction. Shared by handlers that gate access to another user's content.
-func areFriends(db *gorm.DB, userID, otherUserID uuid.UUID) bool {
+// A database failure is returned so callers can surface it instead of
+// treating an infrastructure error as a denial.
+func areFriends(db *gorm.DB, userID, otherUserID uuid.UUID) (bool, error) {
 	var count int64
-	db.Model(&models.Friendship{}).
+	err := db.Model(&models.Friendship{}).
 		Where(
 			"((requester_id = ? AND addressee_id = ?) OR (requester_id = ? AND addressee_id = ?)) AND status = ?",
 			userID, otherUserID, otherUserID, userID, models.FriendshipAccepted,
 		).
-		Count(&count)
-	return count > 0
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 func (h *FriendHandler) findAddressed(c *gin.Context, userID uuid.UUID) (models.Friendship, bool) {

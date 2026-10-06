@@ -140,9 +140,15 @@ func (h *FeedHandler) GetTodo(c *gin.Context) {
 		return
 	}
 
+	friends, err := areFriends(h.db, userID, todo.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify friendship"})
+		return
+	}
+
 	// Check friendship before privacy so a non-friend can't use the error
 	// message to probe whether an arbitrary task exists or is private.
-	if !areFriends(h.db, userID, todo.UserID) {
+	if !friends {
 		c.JSON(http.StatusNotFound, gin.H{"error": "todo not found"})
 		return
 	}
