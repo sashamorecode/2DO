@@ -96,8 +96,18 @@ export async function ensureNotificationSetup(): Promise<boolean> {
       return req.status === 'granted';
     }
     return true;
-  } catch {
+  } catch (e) {
+    console.warn('[notifications] Notification setup failed:', e);
     return false;
+  }
+}
+
+async function settleAll(phase: string, tasks: Promise<unknown>[]): Promise<void> {
+  const results = await Promise.allSettled(tasks);
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      console.warn(`[notifications] ${phase} failed:`, result.reason);
+    }
   }
 }
 
@@ -106,43 +116,49 @@ async function doSync(userId: string, todos: Todo[]): Promise<void> {
   try {
     const desired = desiredReminders(todos, userId);
     const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+
     const ours = scheduled.filter(
       (n) => n.content?.data?.namespace === NAMESPACE && n.content?.data?.userId === userId
     );
-
+    const existingById = new Map(ours.map((n) => [n.identifier, n]));
     const desiredById = new Map(desired.map((d) => [d.identifier, d]));
 
-    await Promise.all(
-      ours
-        .filter((existing) => {
-          const wanted = desiredById.get(existing.identifier);
-          return !wanted || existing.content.data.signature !== wanted.data.signature;
-        })
-        .map((existing) => Notifications.cancelScheduledNotificationAsync(existing.identifier))
-    );
+    const toCancel: string[] = [];
+    for (const [identifier, existing] of existingById) {
+      const wanted = desiredById.get(identifier);
+      if (!wanted || existing.content.data.signature !== wanted.data.signature) {
+        toCancel.push(identifier);
+      }
+    }
 
-    await Promise.all(
-      desired
-        .filter((d) => {
-          const existing = ours.find((n) => n.identifier === d.identifier);
-          return !existing || existing.content.data.signature !== d.data.signature;
+    const toSchedule = desired.filter((d) => {
+      const existing = existingById.get(d.identifier);
+      return !existing || existing.content.data.signature !== d.data.signature;
+    });
+
+    // allSettled so one failing cancel/schedule cannot abort the whole batch.
+    await settleAll(
+      'cancel',
+      toCancel.map((id) => Notifications.cancelScheduledNotificationAsync(id))
+    );
+    await settleAll(
+      'schedule',
+      toSchedule.map((d) =>
+        Notifications.scheduleNotificationAsync({
+          identifier: d.identifier,
+          content: {
+            title: d.title,
+            body: d.body,
+            sound: 'default',
+            data: { ...d.data },
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: new Date(d.at),
+            channelId: Platform.OS === 'android' ? REMINDER_CHANNEL_ID : undefined,
+          },
         })
-        .map((d) =>
-          Notifications.scheduleNotificationAsync({
-            identifier: d.identifier,
-            content: {
-              title: d.title,
-              body: d.body,
-              sound: 'default',
-              data: { ...d.data },
-            },
-            trigger: {
-              type: Notifications.SchedulableTriggerInputTypes.DATE,
-              date: new Date(d.at),
-              channelId: Platform.OS === 'android' ? REMINDER_CHANNEL_ID : undefined,
-            },
-          })
-        )
+      )
     );
   } catch (e) {
     console.warn('[notifications] Failed to sync reminders:', e);
@@ -166,7 +182,8 @@ async function doCancelUserReminders(userId: string): Promise<void> {
   if (Platform.OS === 'web') return;
   try {
     const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-    await Promise.all(
+    await settleAll(
+      'cancel',
       scheduled
         .filter(
           (n) => n.content?.data?.namespace === NAMESPACE && n.content?.data?.userId === userId
@@ -190,7 +207,7 @@ export async function presentTestNotification(): Promise<void> {
     throw new Error('Notifications are unavailable or permission was not granted.');
   }
   await Notifications.scheduleNotificationAsync({
-    identifier: 'todo-reminder-test',
+    identifier: `todo-reminder-test-${Date.now()}`,
     content: {
       title: 'Test notification',
       body: 'If you can see this, notifications work.',
