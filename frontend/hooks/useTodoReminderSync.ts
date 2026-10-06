@@ -6,7 +6,6 @@ import {
   syncTodoReminders,
   cancelUserReminders,
   ensureNotificationSetup,
-  isRemotePushActive,
 } from '../services/notifications';
 import { Todo } from '../services/todos.api';
 
@@ -14,8 +13,10 @@ import { Todo } from '../services/todos.api';
  * Reconciles on-device reminders with the local-first `['todos', 'pending']`
  * cache. Reminders are account-scoped and cancelled on logout/account switch.
  *
- * When remote Expo push is configured, the backend owns owner reminders and
- * this coordinator clears any local ones instead of scheduling (no duplicates).
+ * These local reminders are the source of truth for an owner's own do-date/
+ * due-date reminders, so they run regardless of remote push. If remote Expo
+ * push is enabled later, the backend Stage-1 owner notifications
+ * (deadline_checker) must be disabled to avoid sending both.
  */
 export function useTodoReminderSync() {
   const qc = useQueryClient();
@@ -51,14 +52,7 @@ export function useTodoReminderSync() {
       // Re-check setup on every run rather than caching it: permission may be
       // granted later (via the test button or system settings).
       void ensureNotificationSetup().then((granted) => {
-        if (cancelled || !granted) return;
-        if (isRemotePushActive()) {
-          // Remote push actually registered and owns owner reminders; clear any
-          // local ones so the user is not notified twice.
-          void cancelUserReminders(userId);
-          return;
-        }
-        void syncTodoReminders(userId, todos);
+        if (!cancelled && granted) void syncTodoReminders(userId, todos);
       });
     };
 

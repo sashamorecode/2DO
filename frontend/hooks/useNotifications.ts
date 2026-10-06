@@ -3,12 +3,7 @@ import { AppState } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
-import {
-  ensureNotificationSetup,
-  getConfiguredProjectId,
-  isRemotePushConfigured,
-  setRemotePushRegistered,
-} from '../services/notifications';
+import { ensureNotificationSetup, getConfiguredProjectId, isRemotePushConfigured } from '../services/notifications';
 
 // Dedupe and coalesce registration, keyed by the auth token so a direct
 // account switch never reuses the previous account's registration.
@@ -21,7 +16,6 @@ export function useNotifications() {
   useEffect(() => {
     if (!token) {
       lastRegistered = null;
-      setRemotePushRegistered(false);
       return;
     }
 
@@ -57,24 +51,16 @@ function registerForPushNotifications(token: string): Promise<void> {
 async function doRegister(token: string) {
   try {
     const projectId = getConfiguredProjectId();
-    if (!projectId) {
-      setRemotePushRegistered(false);
-      return;
-    }
+    if (!projectId) return;
 
     const { data: pushToken } = await Notifications.getExpoPushTokenAsync({ projectId });
     if (useAuthStore.getState().token !== token) return;
 
-    if (lastRegistered?.authToken === token && lastRegistered.pushToken === pushToken) {
-      setRemotePushRegistered(true);
-      return;
-    }
+    if (lastRegistered?.authToken === token && lastRegistered.pushToken === pushToken) return;
 
     await api.put('/me/push-token', { token: pushToken });
     lastRegistered = { authToken: token, pushToken };
-    setRemotePushRegistered(true);
   } catch (e) {
-    setRemotePushRegistered(false);
     // Log only a safe summary: an Axios error here would carry the push token
     // and bearer token in its config.
     console.error(

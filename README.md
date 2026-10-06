@@ -295,3 +295,9 @@ Uses [Expo Push Notification Service](https://docs.expo.dev/push-notifications/o
 `EXPO_ACCESS_TOKEN` is optional. It only authenticates requests to Expo's Push API — and is only required if you've enabled [enhanced push security](https://docs.expo.dev/push-notifications/sending-notifications/#enhanced-security) for your Expo account. Leaving it empty does **not** disable push.
 
 For production delivery you additionally need platform credentials (Android FCM `google-services.json` / iOS APNs) and an EAS project id. On-device local reminders work without any of these.
+
+### On-device reminders
+
+The app schedules local do-date (priority A) and due-date (priority B) reminders directly on the device, so owners are reminded even without push credentials or network. They are reconciled from the locally cached pending tasks and are cancelled on logout/account switch.
+
+Because the backend deadline worker also sends Stage-1 *owner* notifications, enabling remote push would double-notify owners. If you enable remote push, disable the owner Stage-1 sends in `backend/internal/worker/deadline_checker.go` (the friend-intervention stage and its 24h clock can remain). Also add token unregistration on logout so a signed-out device stops receiving an account's pushes.

@@ -16,26 +16,11 @@ export function getConfiguredProjectId(): string | undefined {
   return candidates.find((c): c is string => typeof c === 'string' && UUID_RE.test(c));
 }
 
-// Remote Expo push is unavailable in Expo Go and on web. When it *is* available
-// the backend owns owner reminders, so local reminders must stay off to avoid
-// sending both.
+// Remote Expo push is unavailable in Expo Go and on web.
 export function isRemotePushConfigured(): boolean {
   if (Platform.OS === 'web') return false;
   if (Constants.executionEnvironment === ExecutionEnvironment.StoreClient) return false;
   return getConfiguredProjectId() !== undefined;
-}
-
-let remotePushRegistered = false;
-
-export function setRemotePushRegistered(registered: boolean): void {
-  remotePushRegistered = registered;
-}
-
-// True only when remote push is configured *and* a token was actually
-// registered this session. If registration fails (e.g. missing FCM/APNs),
-// local reminders remain the source of truth.
-export function isRemotePushActive(): boolean {
-  return isRemotePushConfigured() && remotePushRegistered;
 }
 
 async function getUserScheduledNotifications(userId: string) {
