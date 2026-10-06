@@ -23,6 +23,11 @@ type FriendFeedItem struct {
 	Todos []models.Todo     `json:"todos"`
 }
 
+type FriendTodoDetail struct {
+	Todo  models.Todo       `json:"todo"`
+	Owner models.UserPublic `json:"owner"`
+}
+
 func (h *FeedHandler) GetFeed(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	status := models.StatusPending
@@ -111,4 +116,45 @@ func (h *FeedHandler) GetFeed(c *gin.Context) {
 		result = append(result, *item)
 	}
 	c.JSON(http.StatusOK, result)
+}
+
+// GetTodo returns a single public task owned by a friend so the client can
+// render a read-only detail view. Private tasks, your own tasks, and tasks
+// owned by non-friends are rejected.
+func (h *FeedHandler) GetTodo(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	var todo models.Todo
+	if err := h.db.Preload("Tags").Preload("User").Where("id = ?", id).First(&todo).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "todo not found"})
+		return
+	}
+
+	if todo.UserID == userID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "use the todos endpoint for your own tasks"})
+		return
+	}
+
+	if todo.IsPrivate {
+		c.JSON(http.StatusForbidden, gin.H{"error": "task is private"})
+		return
+	}
+
+	if !areFriends(h.db, userID, todo.UserID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "you can only view a friend's task"})
+		return
+	}
+
+	owner := models.UserPublic{ID: todo.UserID}
+	if todo.User != nil {
+		owner = todo.User.ToPublic()
+	}
+	todo.User = nil
+
+	c.JSON(http.StatusOK, FriendTodoDetail{Todo: todo, Owner: owner})
 }

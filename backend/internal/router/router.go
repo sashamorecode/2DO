@@ -73,6 +73,7 @@ func Setup(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	friends.DELETE("/:id", friendH.Remove)
 
 	protected.GET("/feed", feedH.GetFeed)
+	protected.GET("/feed/todos/:id", feedH.GetTodo)
 
 	bodyDouble := protected.Group("/body-double")
 	bodyDouble.POST("/sessions", bodyDoubleH.CreateSession)

@@ -243,7 +243,7 @@ func (h *TodoHandler) Poke(c *gin.Context) {
 		return
 	}
 
-	if !h.areFriends(userID, todo.UserID) {
+	if !areFriends(h.db, userID, todo.UserID) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "you can only poke a friend's task"})
 		return
 	}
@@ -359,15 +359,4 @@ func parseUrgency(raw string) (string, bool) {
 	default:
 		return "", false
 	}
-}
-
-func (h *TodoHandler) areFriends(userID, otherUserID uuid.UUID) bool {
-	var count int64
-	h.db.Model(&models.Friendship{}).
-		Where(
-			"((requester_id = ? AND addressee_id = ?) OR (requester_id = ? AND addressee_id = ?)) AND status = ?",
-			userID, otherUserID, otherUserID, userID, models.FriendshipAccepted,
-		).
-		Count(&count)
-	return count > 0
 }

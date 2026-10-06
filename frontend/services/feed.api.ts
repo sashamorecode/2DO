@@ -6,6 +6,11 @@ export interface FriendFeedItem {
   todos: Todo[];
 }
 
+export interface FriendTodoDetail {
+  todo: Todo;
+  owner: { id: string; username: string | null };
+}
+
 interface FeedParams {
   friendId?: string;
   status?: 'pending' | 'completed';
@@ -21,4 +26,7 @@ export const feedApi = {
         },
       })
       .then((r) => r.data),
+
+  getTodo: (id: string) =>
+    api.get<FriendTodoDetail>(`/feed/todos/${id}`).then((r) => r.data),
 };

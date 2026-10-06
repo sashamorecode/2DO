@@ -354,6 +354,7 @@ export default function TasksScreen() {
             feed={friendsActiveGroups}
             loading={friendsPendingQuery.isLoading}
             onRefresh={onRefresh}
+            onOpen={(todo) => router.push(`/(app)/todo/friend/${todo.id}`)}
             pokingTodoId={pokingTodoId}
             onPoke={(todoId, ownerName, title) => pokeMutation.mutate({ todoId, ownerName, title })}
           />
@@ -377,6 +378,7 @@ export default function TasksScreen() {
           loading={friendsPendingQuery.isLoading || bodyDoubleSessionsQuery.isLoading}
           onRefresh={onRefresh}
           readOnly
+          onPress={(todo) => router.push(`/(app)/todo/friend/${todo.id}`)}
           pokingTodoId={pokingTodoId}
           onPoke={(item) =>
             pokeMutation.mutate({
@@ -405,6 +407,7 @@ export default function TasksScreen() {
           loading={friendsDoneQuery.isLoading}
           onRefresh={onRefresh}
           readOnly
+          onPress={(todo) => router.push(`/(app)/todo/friend/${todo.id}`)}
         />
       ) : null}
     </Screen>
@@ -465,12 +468,14 @@ function FriendsBoard({
   feed,
   loading,
   onRefresh,
+  onOpen,
   onPoke,
   pokingTodoId,
 }: {
   feed: FriendFeedItem[];
   loading: boolean;
   onRefresh: () => void;
+  onOpen: (todo: Todo) => void;
   onPoke: (todoId: string, ownerName: string | null | undefined, title: string) => void;
   pokingTodoId: string | null;
 }) {
@@ -493,6 +498,7 @@ function FriendsBoard({
               key={todo.id}
               todo={todo}
               readOnly
+              onPress={onOpen}
               actionTitle="Poke"
               actionLoading={pokingTodoId === todo.id}
               onActionPress={() => onPoke(todo.id, item.user.username, todo.title)}
@@ -592,7 +598,7 @@ function CalendarBoard({
                 todo={item.todo}
                 readOnly={readOnly}
                 onComplete={readOnly ? undefined : onComplete}
-                onPress={readOnly ? undefined : onPress}
+                onPress={onPress}
                 actionTitle={item.owner && onPoke ? 'Poke' : undefined}
                 actionLoading={pokingTodoId === item.todo.id}
                 onActionPress={item.owner && onPoke ? () => onPoke(item) : undefined}
@@ -663,7 +669,7 @@ function DoneBoard({
           todo={item.todo}
           ownerLabel={item.owner?.username ?? undefined}
           onReopen={readOnly || !onReopen ? undefined : () => onReopen(item.todo.id)}
-          onPress={readOnly || !onPress ? undefined : () => onPress(item.todo)}
+          onPress={!onPress ? undefined : () => onPress(item.todo)}
         />
       )}
       ListEmptyComponent={

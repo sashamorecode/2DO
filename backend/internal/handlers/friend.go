@@ -135,6 +135,19 @@ func (h *FriendHandler) Remove(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
+// areFriends reports whether two users have an accepted friendship in either
+// direction. Shared by handlers that gate access to another user's content.
+func areFriends(db *gorm.DB, userID, otherUserID uuid.UUID) bool {
+	var count int64
+	db.Model(&models.Friendship{}).
+		Where(
+			"((requester_id = ? AND addressee_id = ?) OR (requester_id = ? AND addressee_id = ?)) AND status = ?",
+			userID, otherUserID, otherUserID, userID, models.FriendshipAccepted,
+		).
+		Count(&count)
+	return count > 0
+}
+
 func (h *FriendHandler) findAddressed(c *gin.Context, userID uuid.UUID) (models.Friendship, bool) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {

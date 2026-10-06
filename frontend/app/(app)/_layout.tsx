@@ -65,6 +65,7 @@ export default function AppLayout() {
       />
       <Tabs.Screen name="todo/new" options={{ href: null, title: 'New Task' }} />
       <Tabs.Screen name="todo/[id]" options={{ href: null, title: 'Edit Task' }} />
+      <Tabs.Screen name="todo/friend/[id]" options={{ href: null, title: 'Friend Task' }} />
       <Tabs.Screen name="body-double/request" options={{ href: null, title: 'Body Double' }} />
     </Tabs>
   );
