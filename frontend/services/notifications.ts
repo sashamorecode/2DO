@@ -154,7 +154,9 @@ async function doSync(userId: string, todos: Todo[]): Promise<void> {
   if (Platform.OS === 'web') return;
   try {
     const desired = desiredReminders(todos, userId);
-    const ours = await getUserScheduledNotifications(userId);
+    const ours = (await getUserScheduledNotifications(userId)).filter(
+      (n) => n.content?.data?.kind === 'do' || n.content?.data?.kind === 'due'
+    );
     const existingById = new Map(ours.map((n) => [n.identifier, n]));
     const desiredById = new Map(desired.map((d) => [d.identifier, d]));
 
@@ -232,16 +234,21 @@ export function cancelUserReminders(userId: string): Promise<void> {
   return enqueue(() => doCancelUserReminders(userId));
 }
 
-export async function presentTestNotification(): Promise<void> {
+export async function presentTestNotification(userId: string): Promise<void> {
   const ready = await ensureNotificationSetup();
   if (!ready) {
     throw new Error('Notifications are unavailable or permission was not granted.');
   }
+  const identifier = `todo-reminder-test:${userId}`;
+  // Namespaced + account-scoped so logout/account-switch cleanup cancels it;
+  // replace any pending test rather than stacking duplicates.
+  await Notifications.cancelScheduledNotificationAsync(identifier).catch(() => {});
   await Notifications.scheduleNotificationAsync({
-    identifier: `todo-reminder-test-${Date.now()}`,
+    identifier,
     content: {
       title: 'Test notification',
       body: 'If you can see this, notifications work.',
+      data: { namespace: NAMESPACE, userId, kind: 'test' },
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,

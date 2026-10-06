@@ -104,7 +104,7 @@ export default function ProfileScreen() {
           variant="secondary"
           onPress={async () => {
             try {
-              await presentTestNotification();
+              await presentTestNotification(user?.id ?? '');
               Alert.alert('Test scheduled', 'A test notification will appear in about 3 seconds.');
             } catch (e) {
               Alert.alert('Test failed', String((e as Error)?.message ?? e));
