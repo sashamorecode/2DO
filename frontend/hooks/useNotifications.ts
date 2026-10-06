@@ -21,27 +21,29 @@ export function useNotifications() {
       if (granted && canRegisterRemote) {
         await registerForPushNotifications(token);
       }
-    })();
+    })().catch((e) => {
+      console.error('[notifications] Setup failed:', e);
+    });
   }, [token]);
 }
 
 async function registerForPushNotifications(token: string) {
-  const { status } = await Notifications.getPermissionsAsync();
-  if (status !== 'granted') return;
-
-  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  const candidates: (string | undefined)[] = [
-    process.env.EXPO_PUBLIC_EAS_PROJECT_ID,
-    Constants.expoConfig?.extra?.eas?.projectId,
-    Constants.easConfig?.projectId,
-  ];
-  const projectId = candidates.find((c): c is string => typeof c === 'string' && UUID_RE.test(c));
-  if (!projectId) {
-    console.warn('[notifications] No valid EAS projectId; remote push disabled. Set EXPO_PUBLIC_EAS_PROJECT_ID.');
-    return;
-  }
-
   try {
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== 'granted') return;
+
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const candidates: (string | undefined)[] = [
+      process.env.EXPO_PUBLIC_EAS_PROJECT_ID,
+      Constants.expoConfig?.extra?.eas?.projectId,
+      Constants.easConfig?.projectId,
+    ];
+    const projectId = candidates.find((c): c is string => typeof c === 'string' && UUID_RE.test(c));
+    if (!projectId) {
+      console.warn('[notifications] No valid EAS projectId; remote push disabled. Set EXPO_PUBLIC_EAS_PROJECT_ID.');
+      return;
+    }
+
     const { data: pushToken } = await Notifications.getExpoPushTokenAsync({ projectId });
     if (useAuthStore.getState().token !== token) return;
     await api.put('/me/push-token', { token: pushToken });

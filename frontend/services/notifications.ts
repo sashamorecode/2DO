@@ -182,7 +182,7 @@ export function cancelUserReminders(userId: string): Promise<void> {
 export async function presentTestNotification(): Promise<void> {
   const ready = await ensureNotificationSetup();
   if (!ready) {
-    throw new Error('Notification permission is not granted.');
+    throw new Error('Notifications are unavailable or permission was not granted.');
   }
   await Notifications.scheduleNotificationAsync({
     identifier: 'todo-reminder-test',
