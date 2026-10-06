@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Alert, ScrollView, Platform } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -97,24 +97,28 @@ export default function ProfileScreen() {
           </>
         )}
 
-        <View style={{ height: 32 }} />
-        <Text style={styles.label}>Notifications</Text>
-        <Button
-          title="Send test notification"
-          variant="secondary"
-          onPress={async () => {
-            if (!user?.id) {
-              Alert.alert('Not signed in', 'Sign in before sending a test notification.');
-              return;
-            }
-            try {
-              await presentTestNotification(user.id);
-              Alert.alert('Test scheduled', 'A test notification will appear in about 3 seconds.');
-            } catch (e) {
-              Alert.alert('Test failed', String((e as Error)?.message ?? e));
-            }
-          }}
-        />
+        {Platform.OS !== 'web' && (
+          <>
+            <View style={{ height: 32 }} />
+            <Text style={styles.label}>Notifications</Text>
+            <Button
+              title="Send test notification"
+              variant="secondary"
+              onPress={async () => {
+                if (!user?.id) {
+                  Alert.alert('Not signed in', 'Sign in before sending a test notification.');
+                  return;
+                }
+                try {
+                  await presentTestNotification(user.id);
+                  Alert.alert('Test scheduled', 'A test notification will appear in about 3 seconds.');
+                } catch (e) {
+                  Alert.alert('Test failed', String((e as Error)?.message ?? e));
+                }
+              }}
+            />
+          </>
+        )}
 
         <View style={{ height: 48 }} />
         <Button title="Log Out" variant="danger" onPress={onLogout} />

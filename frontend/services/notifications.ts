@@ -7,6 +7,10 @@ export const REMINDER_CHANNEL_ID = 'todo-reminders';
 const NAMESPACE = 'todo-reminder';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+function safeMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
 export function getConfiguredProjectId(): string | undefined {
   const candidates: (string | undefined)[] = [
     process.env.EXPO_PUBLIC_EAS_PROJECT_ID,
@@ -120,13 +124,15 @@ async function doEnsureNotificationSetup(): Promise<boolean> {
     let { status } = await Notifications.getPermissionsAsync();
     if (status === 'undetermined' && !permissionRequested) {
       // Only auto-prompt once per session; a dismissed Android dialog can leave
-      // the status undetermined and we don't want to nag on every sync.
+      // the status undetermined and we don't want to nag on every sync. Set the
+      // flag only after the request resolves so a failed attempt can retry.
+      const req = await Notifications.requestPermissionsAsync();
       permissionRequested = true;
-      status = (await Notifications.requestPermissionsAsync()).status;
+      status = req.status;
     }
     return status === 'granted';
   } catch (e) {
-    console.warn('[notifications] Notification setup failed:', e);
+    console.warn('[notifications] Notification setup failed:', safeMessage(e));
     return false;
   }
 }
@@ -148,7 +154,7 @@ async function settleAll(phase: string, tasks: Promise<unknown>[]): Promise<void
   const results = await Promise.allSettled(tasks);
   for (const result of results) {
     if (result.status === 'rejected') {
-      console.warn(`[notifications] ${phase} failed:`, result.reason);
+      console.warn(`[notifications] ${phase} failed:`, safeMessage(result.reason));
     }
   }
 }
@@ -201,7 +207,7 @@ async function doSync(userId: string, todos: Todo[]): Promise<void> {
       )
     );
   } catch (e) {
-    console.warn('[notifications] Failed to sync reminders:', e);
+    console.warn('[notifications] Failed to sync reminders:', safeMessage(e));
   }
 }
 
@@ -227,7 +233,7 @@ async function doCancelUserReminders(userId: string): Promise<void> {
       ours.map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier))
     );
   } catch (e) {
-    console.warn('[notifications] Failed to cancel reminders:', e);
+    console.warn('[notifications] Failed to cancel reminders:', safeMessage(e));
   }
 }
 
