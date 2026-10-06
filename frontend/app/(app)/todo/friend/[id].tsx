@@ -14,7 +14,6 @@ import {
   CheckCircle2,
   Clock,
   Eye,
-  Lock,
 } from 'lucide-react-native';
 import { colors } from '../../../../constants/colors';
 import { Screen } from '../../../../components/ui/Screen';
@@ -148,13 +147,6 @@ export default function FriendTodoScreen() {
               icon={<CheckCircle2 size={16} color={colors.success} strokeWidth={2.2} />}
               label="Completed"
               value={completedText}
-            />
-          ) : null}
-          {todo.is_private ? (
-            <InfoRow
-              icon={<Lock size={16} color={colors.textMuted} strokeWidth={2.2} />}
-              label="Visibility"
-              value="Private"
             />
           ) : null}
         </View>

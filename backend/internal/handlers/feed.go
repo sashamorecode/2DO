@@ -140,13 +140,15 @@ func (h *FeedHandler) GetTodo(c *gin.Context) {
 		return
 	}
 
-	if todo.IsPrivate {
-		c.JSON(http.StatusForbidden, gin.H{"error": "task is private"})
+	// Check friendship before privacy so a non-friend can't use the error
+	// message to probe whether an arbitrary task exists or is private.
+	if !areFriends(h.db, userID, todo.UserID) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "todo not found"})
 		return
 	}
 
-	if !areFriends(h.db, userID, todo.UserID) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "you can only view a friend's task"})
+	if todo.IsPrivate {
+		c.JSON(http.StatusForbidden, gin.H{"error": "task is private"})
 		return
 	}
 
