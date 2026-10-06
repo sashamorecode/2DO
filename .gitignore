@@ -1,2 +1,6 @@
 .env
 node_modules/
+
+# Local-only secrets for GCP/Firebase/Expo setup. Never commit.
+.secrets/
+frontend/google-services.json

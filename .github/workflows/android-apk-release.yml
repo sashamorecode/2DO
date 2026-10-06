@@ -126,6 +126,14 @@ jobs:
             echo "ANDROID_SIGNING_KEY_PASSWORD=$ANDROID_SIGNING_KEY_PASSWORD"
           } >> "$GITHUB_ENV"
 
+      - name: Write google-services.json
+        working-directory: frontend
+        env:
+          GOOGLE_SERVICES_JSON_B64: ${{ secrets.GOOGLE_SERVICES_JSON_B64 }}
+        run: |
+          test -n "$GOOGLE_SERVICES_JSON_B64"
+          printf '%s' "$GOOGLE_SERVICES_JSON_B64" | base64 -d > google-services.json
+
       - name: Generate Android project
         working-directory: frontend
         run: |

@@ -23,6 +23,7 @@
         "backgroundColor": "#1F0A1D"
       },
       "package": "com.twodo.adhd",
+      "googleServicesFile": "./google-services.json",
       "edgeToEdgeEnabled": true,
       "softwareKeyboardLayoutMode": "resize"
     },
@@ -49,9 +50,11 @@
       "expo-secure-store"
     ],
     "extra": {
+      "router": {},
       "eas": {
-        "projectId": "your-eas-project-id"
+        "projectId": "4e500886-972d-4353-925e-ef620d359c4e"
       }
-    }
+    },
+    "owner": "sashamorecode"
   }
 }

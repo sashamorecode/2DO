@@ -36,4 +36,6 @@ export const authApi = {
   },
 
   fetchMe: () => api.get<{ user: AuthUser }>('/me').then((r) => r.data.user),
+
+  clearPushToken: () => api.delete('/me/push-token').then((r) => r.data),
 };

@@ -44,6 +44,7 @@ func Setup(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	protected.GET("/me", userH.Me)
 	protected.PATCH("/me", userH.UpdateMe)
 	protected.PUT("/me/push-token", userH.UpdatePushToken)
+	protected.DELETE("/me/push-token", userH.ClearPushToken)
 	protected.GET("/users/search", userH.SearchUsers)
 
 	todos := protected.Group("/todos")

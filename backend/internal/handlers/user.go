@@ -119,6 +119,18 @@ func (h *UserHandler) UpdatePushToken(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
+func (h *UserHandler) ClearPushToken(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	if err := h.db.Model(&models.User{}).Where("id = ?", userID).Updates(map[string]interface{}{
+		"push_token":            nil,
+		"push_token_updated_at": time.Now(),
+	}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to clear push token"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
 func (h *UserHandler) SearchUsers(c *gin.Context) {
 	q := c.Query("q")
 	if q == "" {

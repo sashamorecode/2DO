@@ -71,11 +71,9 @@ func (dc *DeadlineChecker) checkDoDatePassed(ctx context.Context) {
 	}
 
 	for _, row := range rows {
-		if row.PushToken != "" {
-			if err := dc.notif.SendDoDateMissed(row.PushToken, row.Title); err != nil {
-				log.Printf("do_date_missed send error for todo %s: %v", row.ID, err)
-			}
-		}
+		// Owner do-date reminders are delivered by on-device local
+		// notifications. We only log the row here so the 24h friend
+		// intervention clock still starts.
 		dc.logNotification(ctx, row.ID, models.NotificationDoDateMissed)
 	}
 }
@@ -100,11 +98,9 @@ func (dc *DeadlineChecker) checkDueDatePassed(ctx context.Context) {
 	}
 
 	for _, row := range rows {
-		if row.PushToken != "" {
-			if err := dc.notif.SendDueDateMissed(row.PushToken, row.Title); err != nil {
-				log.Printf("due_date_missed send error for todo %s: %v", row.ID, err)
-			}
-		}
+		// Owner due-date reminders are delivered by on-device local
+		// notifications. We only log the row here so the 24h friend
+		// intervention clock still starts.
 		dc.logNotification(ctx, row.ID, models.NotificationDueDateMissed)
 	}
 }

@@ -54,6 +54,7 @@ export default function ProfileScreen() {
         text: 'Log Out',
         style: 'destructive',
         onPress: async () => {
+          await authApi.clearPushToken().catch(() => {});
           await signOutGoogle();
           await clearAuth();
         },

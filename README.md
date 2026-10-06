@@ -201,6 +201,7 @@ Required GitHub repository secrets for signed APK releases:
 
 - `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` — the Web OAuth client ID used by Android Google Sign-In
 - `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` — optional for the Android workflow, but useful to keep frontend envs consistent
+- `GOOGLE_SERVICES_JSON_B64` — base64 of `frontend/google-services.json` (Firebase Android config, needed for FCM/remote push)
 - `ANDROID_SIGNING_STORE_FILE_B64` — base64-encoded release keystore file
 - `ANDROID_SIGNING_STORE_PASSWORD` — release keystore password
 - `ANDROID_SIGNING_KEY_ALIAS` — alias inside the release keystore
