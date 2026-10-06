@@ -22,7 +22,7 @@ export function useNotifications() {
         await registerForPushNotifications(token);
       }
     })().catch((e) => {
-      console.error('[notifications] Setup failed:', e);
+      console.error('[notifications] Setup failed:', e instanceof Error ? e.message : String(e));
     });
   }, [token]);
 }
@@ -48,6 +48,11 @@ async function registerForPushNotifications(token: string) {
     if (useAuthStore.getState().token !== token) return;
     await api.put('/me/push-token', { token: pushToken });
   } catch (e) {
-    console.error('[notifications] Push token registration failed:', e);
+    // Log only a safe summary: an Axios error here would carry the push token
+    // and bearer token in its config.
+    console.error(
+      '[notifications] Push token registration failed:',
+      e instanceof Error ? e.message : String(e)
+    );
   }
 }

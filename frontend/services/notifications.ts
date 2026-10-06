@@ -5,6 +5,13 @@ import { Todo } from './todos.api';
 export const REMINDER_CHANNEL_ID = 'todo-reminders';
 const NAMESPACE = 'todo-reminder';
 
+async function getUserScheduledNotifications(userId: string) {
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  return scheduled.filter(
+    (n) => n.content?.data?.namespace === NAMESPACE && n.content?.data?.userId === userId
+  );
+}
+
 export type ReminderKind = 'do' | 'due';
 
 export interface ReminderData {
@@ -115,11 +122,7 @@ async function doSync(userId: string, todos: Todo[]): Promise<void> {
   if (Platform.OS === 'web') return;
   try {
     const desired = desiredReminders(todos, userId);
-    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-
-    const ours = scheduled.filter(
-      (n) => n.content?.data?.namespace === NAMESPACE && n.content?.data?.userId === userId
-    );
+    const ours = await getUserScheduledNotifications(userId);
     const existingById = new Map(ours.map((n) => [n.identifier, n]));
     const desiredById = new Map(desired.map((d) => [d.identifier, d]));
 
@@ -181,14 +184,10 @@ export function syncTodoReminders(userId: string, todos: Todo[] | undefined): Pr
 async function doCancelUserReminders(userId: string): Promise<void> {
   if (Platform.OS === 'web') return;
   try {
-    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    const ours = await getUserScheduledNotifications(userId);
     await settleAll(
       'cancel',
-      scheduled
-        .filter(
-          (n) => n.content?.data?.namespace === NAMESPACE && n.content?.data?.userId === userId
-        )
-        .map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier))
+      ours.map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier))
     );
   } catch (e) {
     console.warn('[notifications] Failed to cancel reminders:', e);

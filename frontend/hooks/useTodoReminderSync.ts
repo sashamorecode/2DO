@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../store/authStore';
-import { syncTodoReminders, cancelUserReminders } from '../services/notifications';
+import { syncTodoReminders, cancelUserReminders, ensureNotificationSetup } from '../services/notifications';
 import { Todo } from '../services/todos.api';
 
 /**
@@ -32,17 +32,32 @@ export function useTodoReminderSync() {
       return;
     }
 
+    // Switching directly between two signed-in accounts: cancel the previous
+    // account's reminders before scheduling the new one's.
+    if (lastUserId.current && lastUserId.current !== userId) {
+      void cancelUserReminders(lastUserId.current);
+    }
     lastUserId.current = userId;
 
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+    let ready = false;
 
     const run = () => {
+      if (!ready) return;
       const todos = qc.getQueryData<Todo[]>(['todos', 'pending']);
       if (todos === undefined) return;
       void syncTodoReminders(userId, todos);
     };
 
-    run();
+    // Ensure permission/channel exist before the first sync. Child effects run
+    // before the parent AuthGuard's, so we cannot rely on useNotifications
+    // having created the Android channel already.
+    void ensureNotificationSetup().then((granted) => {
+      if (cancelled) return;
+      ready = granted;
+      if (granted) run();
+    });
 
     const unsub = qc.getQueryCache().subscribe((event) => {
       const key = event?.query?.queryKey;
@@ -55,6 +70,7 @@ export function useTodoReminderSync() {
     });
 
     return () => {
+      cancelled = true;
       if (timer) clearTimeout(timer);
       unsub();
     };
