@@ -229,6 +229,62 @@ To prepare the keystore secret value for GitHub Actions:
 base64 -w0 path/to/release.keystore
 ```
 
+Also required for OTA updates:
+
+- `EXPO_TOKEN` — an Expo [access token](https://expo.dev/settings/access-tokens) for the `sashamorecode` account, used by the **EAS Update (OTA)** workflow to publish updates.
+
+---
+
+## Over-the-Air (OTA) Updates
+
+The release APK ships with [`expo-updates`](https://docs.expo.dev/versions/latest/sdk/updates/) configured for [EAS Update](https://docs.expo.dev/eas-update/introduction/), so JavaScript, style, and asset changes reach installed apps without anyone re-downloading the APK.
+
+### What can ship OTA
+
+| Change | OTA? |
+|---|---|
+| Screens, components, styles, business logic, copy | Yes |
+| Images and other bundled assets | Yes |
+| New native module, permission, or config plugin | No — needs a new APK |
+| Google Sign-In / Firebase / `app.json` native config changes | No — needs a new APK |
+
+If an update contains native changes, users on the old binary will not receive it; you must build and distribute a new APK.
+
+### How it works here
+
+- `frontend/app.json` points `updates.url` at the EAS Update server and sets `runtimeVersion.policy` to `"appVersion"`.
+- The Android build is pinned to the `production` channel via `updates.requestHeaders["expo-channel-name"]`. This is required because the APK is built with `expo prebuild` + Gradle rather than EAS Build.
+- The runtime version equals `expo.version` in `frontend/app.json`; updates are matched to a binary by this value.
+
+**Rule:** any change that needs a new binary must also bump `expo.version` in `frontend/app.json` before building the APK. Publish OTA updates only for changes that stay within that native version.
+
+### First OTA-capable APK
+
+APKs built before OTA was added do not contain `expo-updates` and cannot receive updates. Everyone installs one OTA-capable APK once; from then on, JS-only updates arrive automatically.
+
+### Publishing an update
+
+Locally (requires `EXPO_TOKEN` or `eas login`):
+
+```bash
+cd frontend
+npx eas-cli update --channel production --message "Describe the change"
+```
+
+Or run the **EAS Update (OTA)** workflow from the GitHub Actions tab and pick the channel and message. The workflow authenticates with the `EXPO_TOKEN` repository secret.
+
+Updates are checked on launch (`checkAutomatically: ON_LOAD`) and applied on the next app restart. `fallbackToCacheTimeout` is `0`, so a download never blocks startup. A `preview` channel is available for testing without touching production users.
+
+### Testing
+
+- `npx eas-cli update:list --branch production` lists published updates.
+- Force-close and reopen a release build up to two times to download and apply an update.
+- On a dev client, publish to `preview` and load it from the Extensions tab.
+
+### Rollback
+
+Re-publish the JavaScript from a previous commit as a new update for the same channel. Native changes cannot be rolled back over the air — ship a new APK.
+
 ---
 
 ## Database

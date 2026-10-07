@@ -1,0 +1,101 @@
+name: EAS Update (OTA)
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: EAS Update channel to publish to
+        required: true
+        default: production
+        type: choice
+        options:
+          - production
+          - preview
+      message:
+        description: Human-readable message for this update
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Validate frontend secrets
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
+        run: |
+          test -n "$EXPO_TOKEN"
+          test -n "$EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID"
+
+      - name: Seed frontend env file
+        working-directory: frontend
+        env:
+          EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
+          EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID }}
+        run: |
+          if [ ! -f .env ] && [ -f .env.example ]; then
+            cp .env.example .env
+          fi
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+
+          env_path = Path('.env')
+          entries = {}
+
+          for raw_line in env_path.read_text().splitlines():
+              if '=' not in raw_line or raw_line.lstrip().startswith('#'):
+                  continue
+              key, value = raw_line.split('=', 1)
+              entries[key] = value
+
+          entries['EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID'] = os.environ['EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID']
+
+          ios_client_id = os.environ.get('EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID', '')
+          if ios_client_id:
+              entries['EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID'] = ios_client_id
+
+          ordered_keys = [
+              'EXPO_PUBLIC_API_URL',
+              'EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID',
+              'EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID',
+          ]
+          lines = [f'{key}={entries[key]}' for key in ordered_keys if key in entries]
+          env_path.write_text('\n'.join(lines) + '\n')
+          PY
+
+      - name: Publish update
+        working-directory: frontend
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          UPDATE_CHANNEL: ${{ inputs.channel }}
+          UPDATE_MESSAGE: ${{ inputs.message }}
+        run: |
+          message="$UPDATE_MESSAGE"
+          if [ -z "$message" ]; then
+            message="OTA update from ${GITHUB_SHA::7} on ${GITHUB_REF_NAME:-master}"
+          fi
+          npx --yes eas-cli@24.12.0 update \
+            --channel "$UPDATE_CHANNEL" \
+            --message "$message" \
+            --non-interactive
