@@ -187,7 +187,7 @@ export default function BodyDoubleRequestScreen() {
           name="message"
           render={({ field: { onChange, value } }) => (
             <Input
-              label="Message (optional)"
+              label="Message"
               value={value ?? ''}
               onChangeText={onChange}
               placeholder="Hey, let's work together! 🎯"

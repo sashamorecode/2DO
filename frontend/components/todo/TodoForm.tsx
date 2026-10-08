@@ -167,7 +167,7 @@ export function TodoForm({ initialValues, onSubmit, submitLabel = 'Save', loadin
         name="description"
         render={({ field: { onChange, value } }) => (
           <Input
-            label="Description (optional)"
+            label="Description"
             value={value}
             onChangeText={onChange}
             placeholder="More details..."
@@ -210,37 +210,39 @@ export function TodoForm({ initialValues, onSubmit, submitLabel = 'Save', loadin
       <View style={styles.tagsPanel}>
         {tagsQuery.isLoading ? (
           <ActivityIndicator size="small" color={colors.accent} />
-        ) : tagsQuery.data && tagsQuery.data.length > 0 ? (
-          <View style={styles.tagsWrap}>
-            {tagsQuery.data.map((tag) => {
-              const selected = selectedTagIds.includes(tag.id);
-              return (
-                <TouchableOpacity
-                  key={tag.id}
-                  onPress={() => toggleTag(tag.id)}
-                  style={[
-                    styles.tagChoice,
-                    {
-                      borderColor: tag.color,
-                      backgroundColor: selected ? `${tag.color}30` : 'transparent',
-                    },
-                  ]}
-                >
-                  <View style={[styles.tagDot, { backgroundColor: tag.color }]} />
-                  <Text style={[styles.tagChoiceText, { color: selected ? tag.color : colors.textMuted }]}>
-                    {tag.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
         ) : (
-          <Text style={styles.emptyTagText}>No tags yet. Create one to organize tasks.</Text>
-        )}
+          <View style={styles.tagsWrap}>
+            {tagsQuery.data && tagsQuery.data.length > 0 ? (
+              tagsQuery.data.map((tag) => {
+                const selected = selectedTagIds.includes(tag.id);
+                return (
+                  <TouchableOpacity
+                    key={tag.id}
+                    onPress={() => toggleTag(tag.id)}
+                    style={[
+                      styles.tagChoice,
+                      {
+                        borderColor: tag.color,
+                        backgroundColor: selected ? `${tag.color}30` : 'transparent',
+                      },
+                    ]}
+                  >
+                    <View style={[styles.tagDot, { backgroundColor: tag.color }]} />
+                    <Text style={[styles.tagChoiceText, { color: selected ? tag.color : colors.textMuted }]}>
+                      {tag.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })
+            ) : (
+              <Text style={styles.emptyTagText}>No tags yet.</Text>
+            )}
 
-        <TouchableOpacity style={styles.tagCreateToggle} onPress={() => setShowTagCreator((v) => !v)}>
-          <Text style={styles.tagCreateToggleText}>{showTagCreator ? 'Cancel' : 'Create tag'}</Text>
-        </TouchableOpacity>
+            <TouchableOpacity style={styles.tagCreateToggle} onPress={() => setShowTagCreator((v) => !v)}>
+              <Text style={styles.tagCreateToggleText}>{showTagCreator ? 'Cancel' : 'Create tag'}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {showTagCreator ? (
           <View style={styles.tagCreatorCard}>
@@ -278,7 +280,7 @@ export function TodoForm({ initialValues, onSubmit, submitLabel = 'Save', loadin
       </View>
 
       <DateTimeField
-        label="Due date (optional)"
+        label="Due date"
         date={watch('deadline')}
         hasTime={watch('deadlineHasTime')}
         onDate={(d) => setValue('deadline', d)}
@@ -286,7 +288,7 @@ export function TodoForm({ initialValues, onSubmit, submitLabel = 'Save', loadin
       />
 
       <DateTimeField
-        label="Do date (optional)"
+        label="Do date"
         date={watch('plannedAt')}
         hasTime={watch('plannedHasTime')}
         onDate={(d) => setValue('plannedAt', d)}
@@ -443,7 +445,7 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 10,
   },
-  tagsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  tagsWrap: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   tagChoice: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -468,7 +470,6 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   tagCreateToggle: {
-    alignSelf: 'flex-start',
     borderWidth: 1,
     borderColor: colors.accentMuted,
     borderRadius: 999,
