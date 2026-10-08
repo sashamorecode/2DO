@@ -172,7 +172,6 @@ export function TodoForm({ initialValues, onSubmit, submitLabel = 'Save', loadin
             onChangeText={onChange}
             placeholder="More details..."
             multiline
-            numberOfLines={3}
             style={{ minHeight: 80, textAlignVertical: 'top' }}
           />
         )}
