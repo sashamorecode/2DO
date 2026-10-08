@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Users, ListChecks, UserRound, Inbox } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../constants/colors';
 import { AnimatedTabIcon } from '../../components/ui/AnimatedTabIcon';
 import { CommitBadge } from '../../components/ui/CommitBadge';
@@ -7,6 +8,9 @@ import { useTodoReminderSync } from '../../hooks/useTodoReminderSync';
 
 export default function AppLayout() {
   useTodoReminderSync();
+  // Edge-to-edge Android draws behind the system navigation bar. Add its
+  // inset to the tab bar height/padding so the tab buttons stay tappable.
+  const insets = useSafeAreaInsets();
   return (
     <Tabs
       initialRouteName="index"
@@ -15,8 +19,8 @@ export default function AppLayout() {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
           borderTopWidth: 1,
-          height: 64,
-          paddingBottom: 10,
+          height: 64 + insets.bottom,
+          paddingBottom: insets.bottom,
           paddingTop: 6,
         },
         tabBarActiveTintColor: colors.accentLight,
