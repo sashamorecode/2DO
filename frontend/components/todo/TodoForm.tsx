@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
@@ -58,11 +59,40 @@ export interface TodoFormInitial {
 interface Props {
   initialValues?: TodoFormInitial;
   onSubmit: (data: CreateTodoInput) => Promise<void>;
+  // When provided, the form is saved automatically as soon as it loses focus
+  // (back button, swipe back, tab switch, or opening another screen), as long
+  // as the title is non-empty and something actually changed.
+  onAutoSave?: (data: CreateTodoInput) => Promise<void>;
   submitLabel?: string;
   loading?: boolean;
+  // What the form should show after a successful save. New tasks reset to a
+  // blank form; existing tasks keep the values that were just saved.
+  resetOnSave?: 'current' | 'empty';
+  // Set this ref to true to suppress the next auto-save (e.g. deleting a task).
+  suspendAutoSaveRef?: React.RefObject<boolean>;
 }
 
-export function TodoForm({ initialValues, onSubmit, submitLabel = 'Save', loading }: Props) {
+const EMPTY_FORM: FormData = {
+  title: '',
+  description: '',
+  priority: 'B',
+  tagIds: [],
+  deadline: null,
+  deadlineHasTime: false,
+  plannedAt: null,
+  plannedHasTime: false,
+  isPrivate: false,
+};
+
+export function TodoForm({
+  initialValues,
+  onSubmit,
+  onAutoSave,
+  submitLabel = 'Save',
+  loading,
+  resetOnSave = 'current',
+  suspendAutoSaveRef,
+}: Props) {
   const timezone = useAuthStore((s) => s.user?.timezone);
   const userId = useAuthStore((s) => s.user?.id) ?? '';
   const queryClient = useQueryClient();
@@ -85,7 +115,15 @@ export function TodoForm({ initialValues, onSubmit, submitLabel = 'Save', loadin
     },
   });
 
-  const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
+  const {
+    control,
+    handleSubmit,
+    watch,
+    setValue,
+    getValues,
+    reset,
+    formState: { errors, isDirty },
+  } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
       title: initialValues?.title ?? '',
@@ -100,8 +138,8 @@ export function TodoForm({ initialValues, onSubmit, submitLabel = 'Save', loadin
     },
   });
 
-  async function submit(data: FormData) {
-    await onSubmit({
+  function buildInput(data: FormData): CreateTodoInput {
+    return {
       title: data.title,
       description: data.description,
       priority: data.priority,
@@ -113,8 +151,88 @@ export function TodoForm({ initialValues, onSubmit, submitLabel = 'Save', loadin
         ? serializeTodoDateInTimeZone(data.plannedAt, data.plannedHasTime, 'morning', timezone)
         : null,
       is_private: data.isPrivate,
-    });
+    };
   }
+
+  // Latest values captured in a ref so the focus/blur listener below can read
+  // them without having to re-subscribe on every keystroke.
+  const onAutoSaveRef = useRef(onAutoSave);
+  useEffect(() => {
+    onAutoSaveRef.current = onAutoSave;
+  }, [onAutoSave]);
+
+  // Keep the latest serializer (and its timezone) without re-subscribing the
+  // focus listener on every render.
+  const buildInputRef = useRef(buildInput);
+  useEffect(() => {
+    buildInputRef.current = buildInput;
+  });
+
+  const isDirtyRef = useRef(isDirty);
+  useEffect(() => {
+    isDirtyRef.current = isDirty;
+  }, [isDirty]);
+
+  // True once a save (manual or automatic) has been kicked off so the blur
+  // handler does not fire a second save.
+  const savedRef = useRef(false);
+
+  const finishSave = useCallback(() => {
+    if (resetOnSave === 'empty') {
+      reset(EMPTY_FORM);
+    } else {
+      reset(getValues());
+    }
+    savedRef.current = false;
+  }, [reset, getValues, resetOnSave]);
+
+  async function submit(data: FormData) {
+    savedRef.current = true;
+    try {
+      await onSubmit(buildInput(data));
+      finishSave();
+    } catch (error) {
+      savedRef.current = false;
+      throw error;
+    }
+  }
+
+  useFocusEffect(
+    useCallback(() => {
+      savedRef.current = false;
+      if (suspendAutoSaveRef) suspendAutoSaveRef.current = false;
+      return () => {
+        const save = onAutoSaveRef.current;
+        if (!save) return;
+        if (savedRef.current) return;
+        if (suspendAutoSaveRef?.current) return;
+        if (!isDirtyRef.current) return;
+        const title = (getValues('title') ?? '').trim();
+        if (!title) return;
+        savedRef.current = true;
+        handleSubmit(
+          async (data) => {
+            try {
+              await save(buildInputRef.current(data));
+              finishSave();
+            } catch (error: any) {
+              savedRef.current = false;
+              Alert.alert(
+                'Could not save task',
+                error?.response?.data?.error ?? 'Please try again.'
+              );
+            }
+          },
+          () => {
+            savedRef.current = false;
+            Alert.alert('Could not save task', 'Please fix the highlighted fields.');
+          }
+        )().catch(() => {
+          savedRef.current = false;
+        });
+      };
+    }, [handleSubmit, getValues, finishSave, suspendAutoSaveRef])
+  );
 
   const selectedTagIds = watch('tagIds') ?? [];
 
@@ -283,16 +401,16 @@ export function TodoForm({ initialValues, onSubmit, submitLabel = 'Save', loadin
         label="Due date"
         date={watch('deadline')}
         hasTime={watch('deadlineHasTime')}
-        onDate={(d) => setValue('deadline', d)}
-        onHasTime={(b) => setValue('deadlineHasTime', b)}
+        onDate={(d) => setValue('deadline', d, { shouldDirty: true })}
+        onHasTime={(b) => setValue('deadlineHasTime', b, { shouldDirty: true })}
       />
 
       <DateTimeField
         label="Do date"
         date={watch('plannedAt')}
         hasTime={watch('plannedHasTime')}
-        onDate={(d) => setValue('plannedAt', d)}
-        onHasTime={(b) => setValue('plannedHasTime', b)}
+        onDate={(d) => setValue('plannedAt', d, { shouldDirty: true })}
+        onHasTime={(b) => setValue('plannedHasTime', b, { shouldDirty: true })}
       />
 
       <Controller

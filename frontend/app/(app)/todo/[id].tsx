@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { View, Text, StyleSheet, Alert, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -21,6 +21,8 @@ export default function EditTodoScreen() {
   const isOnline = useOfflineStore((s) => s.isOnline);
   const refreshPending = useOfflineStore((s) => s.refreshPending);
   const { updateTodo, deleteTodo } = useOfflineTodoOps(qc, userId);
+  // Set before deleting so the form does not try to re-save the task.
+  const suspendAutoSaveRef = useRef(false);
 
   const { data: todo, isLoading } = useQuery({
     queryKey: ['todo', id],
@@ -35,20 +37,35 @@ export default function EditTodoScreen() {
       refreshPending();
       router.replace('/(app)');
     },
+    onError: (error: any) => {
+      suspendAutoSaveRef.current = false;
+      Alert.alert('Could not delete task', error?.response?.data?.error ?? 'Please try again.');
+    },
   });
 
-  async function handleSubmit(data: CreateTodoInput) {
+  async function save(data: CreateTodoInput) {
     await updateTodo(id!, data);
     qc.invalidateQueries({ queryKey: ['todos'] });
     qc.invalidateQueries({ queryKey: ['todo', id] });
     refreshPending();
+  }
+
+  async function handleSubmit(data: CreateTodoInput) {
+    await save(data);
     router.replace('/(app)');
   }
 
   function confirmDelete() {
     Alert.alert('Delete Task', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => deleteMutation.mutate() },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          suspendAutoSaveRef.current = true;
+          deleteMutation.mutate();
+        },
+      },
     ]);
   }
 
@@ -94,6 +111,8 @@ export default function EditTodoScreen() {
           isPrivate: todo.is_private,
         }}
         onSubmit={handleSubmit}
+        onAutoSave={save}
+        suspendAutoSaveRef={suspendAutoSaveRef}
         submitLabel="Save Changes"
       />
     </Screen>

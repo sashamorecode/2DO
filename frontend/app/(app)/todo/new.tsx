@@ -16,19 +16,28 @@ export default function NewTodoScreen() {
   const refreshPending = useOfflineStore((s) => s.refreshPending);
   const { createTodo } = useOfflineTodoOps(qc, user?.id ?? '');
 
-  async function handleSubmit(data: CreateTodoInput) {
+  async function save(data: CreateTodoInput) {
     const created = await createTodo(data);
     qc.setQueryData(['todo', created.id], created);
     // Invalidate list to pick up the new todo (local-first handles the
     // optimistic case; this ensures the list is fresh when online).
     qc.invalidateQueries({ queryKey: ['todos'] });
     refreshPending();
+  }
+
+  async function handleSubmit(data: CreateTodoInput) {
+    await save(data);
     router.replace('/(app)');
   }
 
   return (
     <Screen style={styles.screen}>
-      <TodoForm onSubmit={handleSubmit} submitLabel="Create Task" />
+      <TodoForm
+        onSubmit={handleSubmit}
+        onAutoSave={save}
+        resetOnSave="empty"
+        submitLabel="Create Task"
+      />
     </Screen>
   );
 }
