@@ -2,6 +2,7 @@ import { Tabs } from 'expo-router';
 import { Users, ListChecks, UserRound, Inbox } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 import { AnimatedTabIcon } from '../../components/ui/AnimatedTabIcon';
+import { CommitBadge } from '../../components/ui/CommitBadge';
 import { useTodoReminderSync } from '../../hooks/useTodoReminderSync';
 
 export default function AppLayout() {
@@ -58,6 +59,7 @@ export default function AppLayout() {
         name="inbox"
         options={{
           title: "Inbox",
+          headerRight: () => <CommitBadge />,
           tabBarIcon: ({ color, focused }) => (
             <AnimatedTabIcon Icon={Inbox} color={color} focused={focused} />
           ),

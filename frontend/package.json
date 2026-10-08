@@ -10,8 +10,8 @@
     "web": "expo start --web",
     "dev:android": "expo run:android",
     "dev:phone": "../phone.sh",
-    "update": "npx --yes eas-cli@24.12.0 update --channel production",
-    "update:preview": "npx --yes eas-cli@24.12.0 update --channel preview"
+    "update": "EXPO_PUBLIC_COMMIT_HASH=$(git rev-parse --short HEAD) npx --yes eas-cli@24.12.0 update --channel production",
+    "update:preview": "EXPO_PUBLIC_COMMIT_HASH=$(git rev-parse --short HEAD) npx --yes eas-cli@24.12.0 update --channel preview"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

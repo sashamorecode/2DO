@@ -76,8 +76,13 @@ jobs:
           if ios_client_id:
               entries['EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID'] = ios_client_id
 
+          commit_hash = os.environ.get('GITHUB_SHA', '')
+          if commit_hash:
+              entries['EXPO_PUBLIC_COMMIT_HASH'] = commit_hash
+
           ordered_keys = [
               'EXPO_PUBLIC_API_URL',
+              'EXPO_PUBLIC_COMMIT_HASH',
               'EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID',
               'EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID',
           ]
@@ -93,6 +98,7 @@ jobs:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           UPDATE_CHANNEL: ${{ inputs.channel }}
           UPDATE_MESSAGE: ${{ inputs.message }}
+          EXPO_PUBLIC_COMMIT_HASH: ${{ github.sha }}
         run: |
           message="$UPDATE_MESSAGE"
           if [ -z "$message" ]; then
