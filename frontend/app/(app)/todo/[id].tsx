@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Alert, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Users, WifiOff } from 'lucide-react-native';
@@ -52,7 +52,13 @@ export default function EditTodoScreen() {
     ]);
   }
 
-  if (isLoading || !todo) return null;
+  if (isLoading || !todo) {
+    return (
+      <Screen style={styles.centered}>
+        <ActivityIndicator color={colors.accent} />
+      </Screen>
+    );
+  }
 
   return (
     <Screen style={styles.screen}>
@@ -75,6 +81,7 @@ export default function EditTodoScreen() {
         </TouchableOpacity>
       </View>
       <TodoForm
+        key={id}
         initialValues={{
           title: todo.title,
           description: todo.description,
@@ -95,6 +102,7 @@ export default function EditTodoScreen() {
 
 const styles = StyleSheet.create({
   screen: { paddingHorizontal: 16, paddingTop: 12 },
+  centered: { justifyContent: 'center', alignItems: 'center', flex: 1 },
   header: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' },
   offlineBanner: {
     flexDirection: 'row',
