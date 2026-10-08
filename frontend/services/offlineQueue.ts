@@ -45,6 +45,7 @@ interface OfflineQueueState {
   enqueue: (mutation: Omit<QueuedMutation, 'id' | 'createdAt'>) => void;
   dequeue: (id: string) => void;
   removeMany: (ids: string[]) => void;
+  remapTagIds: (fromId: string, toId: string) => void;
   clearQueue: () => void;
 }
 
@@ -91,11 +92,44 @@ export const useOfflineQueue = create<OfflineQueueState>()(
         set({ queue: get().queue.filter((m) => !remove.has(m.id)) });
       },
 
+      remapTagIds: (fromId, toId) => {
+        set({
+          queue: get().queue.map((m) => {
+            if (m.resource !== 'todo' || m.op !== 'upsert') return m;
+            const tagIds = m.payload?.tag_ids as string[] | undefined;
+            if (!tagIds?.includes(fromId)) return m;
+            return {
+              ...m,
+              payload: {
+                ...m.payload,
+                tag_ids: tagIds.map((id) => (id === fromId ? toId : id)),
+              },
+            };
+          }),
+        });
+      },
+
       clearQueue: () => set({ queue: [] }),
     }),
     {
       name: 'offline-queue',
       storage: createJSONStorage(() => AsyncStorage),
+      version: 1,
+      migrate: (persistedState, version) => {
+        if (version === 0) {
+          const legacy = persistedState as { queue?: QueuedMutation[] } | null;
+          return {
+            ...legacy,
+            queue: (legacy?.queue ?? []).filter(
+              (m) =>
+                (m.op === 'upsert' || m.op === 'delete') &&
+                !!m.resource &&
+                !!m.resourceId
+            ),
+          } as OfflineQueueState;
+        }
+        return persistedState as OfflineQueueState;
+      },
     }
   )
 );

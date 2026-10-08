@@ -91,6 +91,7 @@ jobs:
           import os
 
           env_path = Path('.env')
+          env_path.touch(exist_ok=True)
           entries = {}
 
           for raw_line in env_path.read_text().splitlines():
@@ -110,7 +111,9 @@ jobs:
               'EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID',
               'EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID',
           ]
+          remaining_keys = [key for key in entries if key not in ordered_keys]
           lines = [f'{key}={entries[key]}' for key in ordered_keys if key in entries]
+          lines += [f'{key}={entries[key]}' for key in remaining_keys]
           env_path.write_text('\n'.join(lines) + '\n')
           PY
 

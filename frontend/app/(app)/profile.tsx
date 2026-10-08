@@ -54,7 +54,7 @@ export default function ProfileScreen() {
     const message =
       pendingChanges > 0
         ? `You have ${pendingChanges} unsynced change${pendingChanges === 1 ? '' : 's'}. ` +
-          'Logging out discards them. Log in again to keep them.'
+          'Logging out discards them. Cancel to stay logged in and keep them.'
         : 'You will need to sign in again to access your tasks.';
 
     Alert.alert('Log Out?', message, [
@@ -65,7 +65,9 @@ export default function ProfileScreen() {
         onPress: async () => {
           await authApi.clearPushToken().catch(() => {});
           await signOutGoogle();
-          await resetLocalState();
+          await resetLocalState().catch((e) =>
+            console.warn('[logout] failed to reset local state:', e)
+          );
           await clearAuth();
         },
       },

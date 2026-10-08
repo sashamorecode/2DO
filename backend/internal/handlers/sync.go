@@ -160,6 +160,13 @@ func (h *SyncHandler) upsertTags(tx *gorm.DB, userID uuid.UUID, items []SyncTag)
 			if err := tx.Save(&existing).Error; err != nil {
 				return nil, nil, err
 			}
+			// The client's ID may already refer to a server row under its old
+			// name (e.g. a tag was renamed onto an existing tag's name). Fold
+			// that row into the adopted tag so it doesn't resurface as a ghost
+			// tag on the next /tags fetch.
+			if err := mergeTagRow(tx, id, existing.ID); err != nil {
+				return nil, nil, err
+			}
 			result = append(result, existing)
 			continue
 		}
@@ -297,6 +304,22 @@ func (h *SyncHandler) deleteTags(tx *gorm.DB, userID uuid.UUID, rawIDs []string)
 		return err
 	}
 	return tx.Where("id IN ?", ownedIDs).Delete(&models.Tag{}).Error
+}
+
+// mergeTagRow repoints todo associations from the superseded tag onto the
+// adopted tag and removes the superseded row. Associations that would collide
+// with the adopted tag's composite key are dropped instead.
+func mergeTagRow(tx *gorm.DB, from, to uuid.UUID) error {
+	if err := tx.Exec(
+		"DELETE FROM todo_tags WHERE tag_id = ? AND EXISTS (SELECT 1 FROM todo_tags t2 WHERE t2.todo_id = todo_tags.todo_id AND t2.tag_id = ?)",
+		from, to,
+	).Error; err != nil {
+		return err
+	}
+	if err := tx.Exec("UPDATE todo_tags SET tag_id = ? WHERE tag_id = ?", to, from).Error; err != nil {
+		return err
+	}
+	return tx.Where("id = ?", from).Delete(&models.Tag{}).Error
 }
 
 // ownedTags resolves the given tag IDs to tags owned by userID, translating
