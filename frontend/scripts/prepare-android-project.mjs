@@ -12,6 +12,7 @@ if (!existsSync(androidRoot)) {
 
 const gradleWrapperPath = join(androidRoot, 'gradle/wrapper/gradle-wrapper.properties');
 const appBuildGradlePath = join(androidRoot, 'app/build.gradle');
+const gradlePropertiesPath = join(androidRoot, 'gradle.properties');
 
 const releaseSigningHelpers = `def getReleaseSigningValue = { name ->
     def gradleValue = findProperty(name)
@@ -93,6 +94,19 @@ function updateFile(filePath, transform) {
 updateFile(gradleWrapperPath, (content) =>
   content.replace(/distributionUrl=.*gradle-[\d.]+-bin\.zip/, 'distributionUrl=https\\://services.gradle.org/distributions/gradle-8.14.3-bin.zip')
 );
+
+updateFile(gradlePropertiesPath, (content) => {
+  let next = content.replace(
+    /^org\.gradle\.jvmargs=.*$/m,
+    'org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=2048m'
+  );
+
+  if (!/^kotlin\.daemon\.jvmargs=/m.test(next)) {
+    next = `${next.trimEnd()}\nkotlin.daemon.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=1024m\n`;
+  }
+
+  return next;
+});
 
 updateFile(appBuildGradlePath, (content) => {
   let next = content;
