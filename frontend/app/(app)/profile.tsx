@@ -11,6 +11,8 @@ import { authApi } from '../../services/auth.api';
 import { useAuthStore } from '../../store/authStore';
 import { signOutGoogle } from '../../services/googleSignIn';
 import { presentTestNotification } from '../../services/notifications';
+import { resetLocalState } from '../../services/queryClient';
+import { useOfflineStore } from '../../store/offlineStore';
 
 const schema = z.object({
   username: z
@@ -25,6 +27,7 @@ export default function ProfileScreen() {
   const user = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
   const clearAuth = useAuthStore((s) => s.clearAuth);
+  const pendingChanges = useOfflineStore((s) => s.pendingChanges);
   const [editing, setEditing] = useState(false);
 
   const { control, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormData>({
@@ -48,7 +51,13 @@ export default function ProfileScreen() {
   }
 
   function onLogout() {
-    Alert.alert('Log Out?', 'You will need to sign in again to access your tasks.', [
+    const message =
+      pendingChanges > 0
+        ? `You have ${pendingChanges} unsynced change${pendingChanges === 1 ? '' : 's'}. ` +
+          'Logging out discards them. Log in again to keep them.'
+        : 'You will need to sign in again to access your tasks.';
+
+    Alert.alert('Log Out?', message, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Log Out',
@@ -56,6 +65,7 @@ export default function ProfileScreen() {
         onPress: async () => {
           await authApi.clearPushToken().catch(() => {});
           await signOutGoogle();
+          await resetLocalState();
           await clearAuth();
         },
       },

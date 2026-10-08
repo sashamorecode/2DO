@@ -5,35 +5,35 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 /**
  * Offline mutation queue.
  *
- * When the device is offline, todo and tag mutations are persisted here
- * so they survive app restarts. The sync engine replays them in FIFO
- * order once connectivity returns.
+ * When the device is offline, todo and tag mutations are persisted here so they
+ * survive app restarts. The sync engine flushes them to the server (as a single
+ * batched request) once connectivity returns.
  *
- * SINGLE-DEVICE ASSUMPTION: this queue assumes each user only uses one
- * device. If the same user logs in on a second device, mutations queued
- * on device A won't be visible to device B, and server state may diverge.
- * Multi-device support would require CRDTs or vector clocks.
+ * Mutations are coalesced per resource: a todo/tag has at most one queued
+ * entry, holding its latest full snapshot (or a delete tombstone). This matches
+ * the local-first model — the device always holds the current state, so only
+ * the newest version ever needs to reach the server.
+ *
+ * SINGLE-DEVICE ASSUMPTION: this queue assumes each user only uses one device.
+ * If the same user logs in on a second device, mutations queued on device A
+ * won't be visible to device B, and server state may diverge. Multi-device
+ * support would require CRDTs or vector clocks.
  */
 
-export type MutationOp = 'create' | 'update' | 'delete' | 'complete' | 'reopen';
+export type MutationOp = 'upsert' | 'delete';
 export type MutationResource = 'todo' | 'tag';
 
 export interface QueuedMutation {
-  /** Client-generated UUID for idempotency tracking. */
+  /** Client-generated UUID, unique per queued entry (used for batch removal). */
   id: string;
-  /** The operation to perform. */
+  /** Whether the resource should be written or removed server-side. */
   op: MutationOp;
   /** Which resource type this mutation targets. */
   resource: MutationResource;
-  /**
-   * For 'create': the full CreateTodoInput or CreateTagInput.
-   * For 'update': the full CreateTodoInput / CreateTagInput.
-   * For 'complete' / 'reopen': null (the resourceId is sufficient).
-   * For 'delete': null.
-   */
+  /** The resource's client-generated ID. */
+  resourceId: string;
+  /** Full resource snapshot for 'upsert'; null for 'delete'. */
   payload: any;
-  /** The resource's ID (for update / delete / complete / reopen). */
-  resourceId?: string;
   /** ISO-8601 timestamp set by the client when the mutation was queued. */
   clientUpdatedAt: string;
   /** ISO-8601 timestamp when this entry was created. */
@@ -44,6 +44,7 @@ interface OfflineQueueState {
   queue: QueuedMutation[];
   enqueue: (mutation: Omit<QueuedMutation, 'id' | 'createdAt'>) => void;
   dequeue: (id: string) => void;
+  removeMany: (ids: string[]) => void;
   clearQueue: () => void;
 }
 
@@ -67,11 +68,27 @@ export const useOfflineQueue = create<OfflineQueueState>()(
           id: generateId(),
           createdAt: new Date().toISOString(),
         };
-        set({ queue: [...get().queue, entry] });
+        const queue = get().queue;
+        const existing = queue.findIndex(
+          (m) => m.resource === mutation.resource && m.resourceId === mutation.resourceId
+        );
+        if (existing !== -1) {
+          // Coalesce: the newest state for a resource supersedes older entries.
+          const next = queue.slice();
+          next[existing] = entry;
+          set({ queue: next });
+          return;
+        }
+        set({ queue: [...queue, entry] });
       },
 
       dequeue: (id) => {
         set({ queue: get().queue.filter((m) => m.id !== id) });
+      },
+
+      removeMany: (ids) => {
+        const remove = new Set(ids);
+        set({ queue: get().queue.filter((m) => !remove.has(m.id)) });
       },
 
       clearQueue: () => set({ queue: [] }),

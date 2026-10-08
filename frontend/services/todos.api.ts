@@ -62,8 +62,18 @@ export const todosApi = {
   poke: (id: string) =>
     api.post<{ ok: boolean; delivered?: boolean }>(`/todos/${id}/poke`).then((r) => r.data),
 
-  sync: (todos: any[], tags: any[]) =>
-    api
-      .post<{ todos: Todo[]; tags: Tag[] }>('/sync', { todos, tags })
-      .then((r) => r.data),
+  sync: (payload: SyncPayload) =>
+    api.post<{ todos: Todo[]; tags: Tag[] }>('/sync', payload).then((r) => r.data),
 };
+
+/**
+ * Batched local-first sync payload. Todos/tags are full snapshots keyed by
+ * client-generated ID; the `deleted_*_ids` arrays are tombstones. The server
+ * upserts the snapshots and removes the tombstones, scoped to the caller.
+ */
+export interface SyncPayload {
+  todos: any[];
+  tags: any[];
+  deleted_todo_ids: string[];
+  deleted_tag_ids: string[];
+}

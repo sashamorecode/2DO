@@ -1,6 +1,6 @@
 import { QueryClient } from '@tanstack/react-query';
 import { getIsOnline } from './networkStatus';
-import { useOfflineQueue, QueuedMutation } from './offlineQueue';
+import { useOfflineQueue } from './offlineQueue';
 import { tagsApi, Tag, CreateTagInput } from './tags.api';
 
 /**
@@ -9,7 +9,11 @@ import { tagsApi, Tag, CreateTagInput } from './tags.api';
  * Same local-first pattern as todos.api.offline.ts:
  * 1. Optimistically update the React Query cache.
  * 2. Try the API if online.
- * 3. Queue for later if offline or if the API call fails.
+ * 3. Queue a full local snapshot for sync if offline or if the call fails.
+ *
+ * Queued payloads carry the client-generated ID so the server upserts under
+ * the same ID. If a queued tag shares a name with an existing server tag, the
+ * server adopts the existing row and remaps the association (see sync.go).
  */
 
 function generateId(): string {
@@ -32,6 +36,35 @@ function optimisticTag(input: CreateTagInput, userId: string): Tag {
   };
 }
 
+function toSyncTag(tag: Tag): Record<string, unknown> {
+  return {
+    id: tag.id,
+    name: tag.name,
+    color: tag.color,
+    client_updated_at: tag.updated_at,
+  };
+}
+
+function enqueueTagUpsert(tag: Tag): void {
+  useOfflineQueue.getState().enqueue({
+    op: 'upsert',
+    resource: 'tag',
+    resourceId: tag.id,
+    payload: toSyncTag(tag),
+    clientUpdatedAt: new Date().toISOString(),
+  });
+}
+
+function enqueueTagDelete(id: string): void {
+  useOfflineQueue.getState().enqueue({
+    op: 'delete',
+    resource: 'tag',
+    resourceId: id,
+    payload: null,
+    clientUpdatedAt: new Date().toISOString(),
+  });
+}
+
 function addToTagCache(qc: QueryClient, tag: Tag): void {
   qc.setQueryData<Tag[]>(['tags'], (old) => [...(old ?? []), tag]);
 }
@@ -44,20 +77,6 @@ function updateInTagCache(qc: QueryClient, tag: Tag): void {
 
 function removeFromTagCache(qc: QueryClient, id: string): void {
   qc.setQueryData<Tag[]>(['tags'], (old) => (old ?? []).filter((t) => t.id !== id));
-}
-
-function enqueueTagOp(
-  op: QueuedMutation['op'],
-  resourceId: string | undefined,
-  payload: any
-): void {
-  useOfflineQueue.getState().enqueue({
-    op,
-    resource: 'tag',
-    resourceId,
-    payload,
-    clientUpdatedAt: new Date().toISOString(),
-  });
 }
 
 export interface OfflineTagOps {
@@ -78,11 +97,11 @@ export function useOfflineTagOps(qc: QueryClient, userId: string): OfflineTagOps
         addToTagCache(qc, server);
         return server;
       } catch {
-        enqueueTagOp('create', optimistic.id, input);
+        enqueueTagUpsert(optimistic);
         return optimistic;
       }
     } else {
-      enqueueTagOp('create', optimistic.id, input);
+      enqueueTagUpsert(optimistic);
       return optimistic;
     }
   }
@@ -105,11 +124,11 @@ export function useOfflineTagOps(qc: QueryClient, userId: string): OfflineTagOps
         updateInTagCache(qc, server);
         return server;
       } catch {
-        enqueueTagOp('update', id, input);
+        enqueueTagUpsert(optimistic);
         return optimistic;
       }
     } else {
-      enqueueTagOp('update', id, input);
+      enqueueTagUpsert(optimistic);
       return optimistic;
     }
   }
@@ -121,10 +140,10 @@ export function useOfflineTagOps(qc: QueryClient, userId: string): OfflineTagOps
       try {
         await tagsApi.delete(id);
       } catch {
-        enqueueTagOp('delete', id, null);
+        enqueueTagDelete(id);
       }
     } else {
-      enqueueTagOp('delete', id, null);
+      enqueueTagDelete(id);
     }
   }
 

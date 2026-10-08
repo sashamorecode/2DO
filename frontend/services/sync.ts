@@ -1,20 +1,24 @@
 import { getIsOnline } from './networkStatus';
 import { getQueue, useOfflineQueue, QueuedMutation } from './offlineQueue';
-import { todosApi } from './todos.api';
-import { tagsApi } from './tags.api';
+import { todosApi, SyncPayload } from './todos.api';
+import { queryClient } from './queryClient';
+import { useAuthStore } from '../store/authStore';
 
 /**
  * Sync engine.
  *
- * Replays the offline mutation queue in FIFO order against the live API.
- * Called on app startup (after auth is loaded) and whenever the network
- * transitions from offline → online.
+ * Flushes the offline mutation queue to the server as a single batched
+ * request. Called on app startup (after auth is loaded) and whenever the
+ * network transitions from offline → online.
  *
  * Strategy:
- * - Process mutations sequentially to preserve causal order.
- * - On success → dequeue.
- * - On network error → stop processing (will retry on next reconnect).
- * - On non-retryable error (404, 409, 422) → dequeue anyway (discard).
+ * - Coalesce the queue into full snapshots + delete tombstones.
+ * - POST once to /sync, which upserts by client ID and applies tombstones.
+ * - On success → drop the flushed entries and refetch local caches.
+ * - On transient error (network / 5xx / 429) → keep entries, retry on
+ *   the next reconnect.
+ * - On client error (4xx) → the server rejected the payload; drop the
+ *   flushed entries and refetch so local state matches the server.
  */
 
 let syncing = false;
@@ -22,88 +26,78 @@ let syncing = false;
 export async function processSyncQueue(): Promise<void> {
   if (syncing) return;
   if (!getIsOnline()) return;
+  // The queue rehydrates from storage before the token does; never push it
+  // unauthenticated or the server would reject (and we'd discard) it.
+  if (!useAuthStore.getState().token) return;
 
   const queue = getQueue();
   if (queue.length === 0) return;
 
   syncing = true;
+  const flushedIds = queue.map((m) => m.id);
 
-  for (const mutation of queue) {
-    if (!getIsOnline()) break; // Lost connectivity mid-sync.
-
-    try {
-      await applyMutation(mutation);
-      useOfflineQueue.getState().dequeue(mutation.id);
-    } catch (err: any) {
-      // If it's a network error, stop processing — we'll retry later.
-      if (isNetworkError(err)) {
-        break;
-      }
-      // Non-retryable error (e.g. 404, 409, 422) — discard the mutation.
+  try {
+    await todosApi.sync(buildPayload(queue));
+    useOfflineQueue.getState().removeMany(flushedIds);
+    await reconcileCaches();
+  } catch (err: any) {
+    if (isNonRetryable(err)) {
       console.warn(
-        `[sync] discarding mutation ${mutation.id} (${mutation.op} ${mutation.resource}):`,
+        '[sync] discarding rejected mutations:',
         err?.response?.data ?? err?.message ?? err
       );
-      useOfflineQueue.getState().dequeue(mutation.id);
+      useOfflineQueue.getState().removeMany(flushedIds);
+      await reconcileCaches();
+    } else {
+      console.warn('[sync] deferring queue until next reconnect:', err?.message ?? err);
+    }
+  } finally {
+    syncing = false;
+  }
+}
+
+function buildPayload(queue: QueuedMutation[]): SyncPayload {
+  const payload: SyncPayload = {
+    todos: [],
+    tags: [],
+    deleted_todo_ids: [],
+    deleted_tag_ids: [],
+  };
+
+  for (const mutation of queue) {
+    if (mutation.op === 'delete') {
+      if (mutation.resource === 'todo') {
+        payload.deleted_todo_ids.push(mutation.resourceId);
+      } else {
+        payload.deleted_tag_ids.push(mutation.resourceId);
+      }
+      continue;
+    }
+
+    if (mutation.resource === 'todo') {
+      payload.todos.push(mutation.payload);
+    } else {
+      payload.tags.push(mutation.payload);
     }
   }
 
-  syncing = false;
+  return payload;
 }
 
-async function applyMutation(m: QueuedMutation): Promise<void> {
-  if (m.resource === 'todo') {
-    await applyTodoMutation(m);
-  } else if (m.resource === 'tag') {
-    await applyTagMutation(m);
-  }
+/** Pull fresh server state into the caches the offline store mirrors. */
+async function reconcileCaches(): Promise<void> {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['todos'] }),
+    queryClient.invalidateQueries({ queryKey: ['todo'] }),
+    queryClient.invalidateQueries({ queryKey: ['tags'] }),
+  ]);
 }
 
-async function applyTodoMutation(m: QueuedMutation): Promise<void> {
-  switch (m.op) {
-    case 'create':
-      await todosApi.create(m.payload);
-      break;
-    case 'update':
-      if (!m.resourceId) throw new Error('missing resourceId for update');
-      await todosApi.update(m.resourceId, m.payload);
-      break;
-    case 'delete':
-      if (!m.resourceId) throw new Error('missing resourceId for delete');
-      await todosApi.delete(m.resourceId);
-      break;
-    case 'complete':
-      if (!m.resourceId) throw new Error('missing resourceId for complete');
-      await todosApi.complete(m.resourceId);
-      break;
-    case 'reopen':
-      if (!m.resourceId) throw new Error('missing resourceId for reopen');
-      await todosApi.reopen(m.resourceId);
-      break;
-  }
-}
-
-async function applyTagMutation(m: QueuedMutation): Promise<void> {
-  switch (m.op) {
-    case 'create':
-      await tagsApi.create(m.payload);
-      break;
-    case 'update':
-      if (!m.resourceId) throw new Error('missing resourceId for update');
-      await tagsApi.update(m.resourceId, m.payload);
-      break;
-    case 'delete':
-      if (!m.resourceId) throw new Error('missing resourceId for delete');
-      await tagsApi.delete(m.resourceId);
-      break;
-    default:
-      throw new Error(`unsupported tag op: ${m.op}`);
-  }
-}
-
-function isNetworkError(err: any): boolean {
-  // Axios network errors have no response, or a 5xx status (server down).
-  if (!err?.response) return true;
+function isNonRetryable(err: any): boolean {
+  if (!err?.response) return false; // network error → retry
   const status = err.response.status;
-  return status >= 500 || status === 429 || status === 0;
+  // Only a malformed payload is guaranteed to fail forever. Anything else
+  // (auth, ownership, server errors) keeps the queue so we never silently
+  // lose a user's local changes.
+  return status === 400 || status === 422;
 }

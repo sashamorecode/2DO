@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Slot, useRouter, useSegments } from 'expo-router';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { persistQueryClient } from '@tanstack/react-query-persist-client';
 import { useAuthStore } from '../store/authStore';
 import { View } from 'react-native';
@@ -8,20 +8,9 @@ import { useNotifications } from '../hooks/useNotifications';
 import { configureGoogleSignIn } from '../services/googleSignIn';
 import { CelebrationHost } from '../components/completion/Celebration';
 import { asyncStoragePersister } from '../services/queryPersister';
+import { queryClient } from '../services/queryClient';
 import { processSyncQueue } from '../services/sync';
 import { getIsOnline } from '../services/networkStatus';
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      // 5-minute stale time: persisted data stays fresh longer across
-      // app restarts, reducing unnecessary refetches. When online,
-      // pull-to-refresh or mutations will bring in fresh data.
-      staleTime: 5 * 60 * 1000,
-    },
-  },
-});
 
 function AuthGuard() {
   const { token, user, isLoaded, setUser } = useAuthStore();

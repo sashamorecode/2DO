@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { getIsOnline, onReconnect } from '../services/networkStatus';
-import { getQueueLength } from '../services/offlineQueue';
+import { getQueueLength, useOfflineQueue } from '../services/offlineQueue';
 import { processSyncQueue } from '../services/sync';
 
 /**
@@ -49,6 +49,21 @@ export const useOfflineStore = create<OfflineState>((set) => ({
 // We do this at module level so it's always active once the store is imported.
 onReconnect(() => {
   useOfflineStore.getState().setOnline(true);
+});
+
+// Keep the pending badge reactive to the queue, including after the persisted
+// queue rehydrates on cold start.
+useOfflineQueue.subscribe(() => {
+  useOfflineStore.getState().refreshPending();
+});
+
+// The queue is restored from AsyncStorage asynchronously. Once it lands, flush
+// anything pending if we're online (startup sync may have raced the rehydrate).
+useOfflineQueue.persist.onFinishHydration(() => {
+  useOfflineStore.getState().refreshPending();
+  if (getIsOnline()) {
+    processSyncQueue();
+  }
 });
 
 // Also poll periodically in case NetInfo doesn't fire reliably.
