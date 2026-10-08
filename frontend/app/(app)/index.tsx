@@ -966,7 +966,7 @@ function getDaySubtitle(iso: string, timezone?: string): string {
 const styles = StyleSheet.create({
   heroCard: {
     marginHorizontal: 16,
-    marginTop: 16,
+    marginTop: 8,
     marginBottom: 12,
     padding: 8,
     borderRadius: 28,

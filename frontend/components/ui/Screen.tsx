@@ -5,13 +5,13 @@ import { colors } from '../../constants/colors';
 
 interface Props extends ViewProps {
   children: React.ReactNode;
-  // Defaults to bottom/left/right because (app) screens sit under a navigator
-  // header that already consumes the top inset; including 'top' here would
-  // double-pad it.
+  // Only horizontal edges: (app) screens sit below a navigator header that
+  // already consumes the top inset, and above the tab bar which already
+  // consumes the bottom inset. Adding either here would double-pad it.
   edges?: readonly Edge[];
 }
 
-export function Screen({ children, style, edges = ['left', 'right', 'bottom'], ...rest }: Props) {
+export function Screen({ children, style, edges = ['left', 'right'], ...rest }: Props) {
   return (
     <SafeAreaView style={styles.safe} edges={edges}>
       <View style={[styles.container, style]} {...rest}>
