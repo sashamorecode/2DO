@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
   ActivityIndicator,
   Alert,
 } from 'react-native';
@@ -19,6 +18,7 @@ import { Input } from '../../../components/ui/Input';
 import { Button } from '../../../components/ui/Button';
 import { Screen } from '../../../components/ui/Screen';
 import { DateTimeField } from '../../../components/ui/DateTimeField';
+import { KeyboardAwareScrollView } from '../../../components/ui/KeyboardAwareScrollView';
 import { friendsApi } from '../../../services/friends.api';
 import { todosApi } from '../../../services/todos.api';
 import { bodyDoubleApi } from '../../../services/bodyDouble.api';
@@ -126,7 +126,7 @@ export default function BodyDoubleRequestScreen() {
 
   return (
     <Screen style={styles.screen}>
-      <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView style={styles.container}>
         {todo && (
           <View style={styles.taskRef}>
             <Text style={styles.taskRefLabel}>Task</Text>
@@ -204,7 +204,7 @@ export default function BodyDoubleRequestScreen() {
           loading={createMutation.isPending}
           style={styles.submitBtn}
         />
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </Screen>
   );
 }

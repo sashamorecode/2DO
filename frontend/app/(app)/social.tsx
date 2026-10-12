@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { WifiOff } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 import { Screen } from '../../components/ui/Screen';
+import { KeyboardAwareScrollView } from '../../components/ui/KeyboardAwareScrollView';
 import { FriendCard } from '../../components/friends/FriendCard';
 import { FriendRequestCard } from '../../components/friends/FriendRequestCard';
 import { FriendSearch } from '../../components/friends/FriendSearch';
@@ -44,7 +45,7 @@ export default function SocialScreen() {
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView contentContainerStyle={styles.list}>
         {!isOnline ? (
           <View style={styles.offlineBanner}>
             <WifiOff size={16} color={colors.warning} strokeWidth={2.2} />
@@ -89,7 +90,7 @@ export default function SocialScreen() {
             <Text style={styles.emptyText}>No friends yet — search above to add some.</Text>
           )}
         </Section>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </Screen>
   );
 }

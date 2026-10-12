@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Alert, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { colors } from '../../constants/colors';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { KeyboardAwareScrollView } from '../../components/ui/KeyboardAwareScrollView';
 import { authApi } from '../../services/auth.api';
 import { useAuthStore } from '../../store/authStore';
 import { signInWithGoogle } from '../../services/googleSignIn';
@@ -63,16 +64,7 @@ export default function LoginScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
-      style={styles.kav}
-    >
-      <ScrollView
-        contentContainerStyle={styles.container}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
+    <KeyboardAwareScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <Text style={styles.logo}>2Do</Text>
         <Text style={styles.tagline}>Stay accountable, get things done</Text>
 
@@ -123,13 +115,11 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </>
         )}
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAwareScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  kav: { flex: 1, backgroundColor: colors.bg },
   container: {
     paddingHorizontal: 24,
     paddingTop: 96,

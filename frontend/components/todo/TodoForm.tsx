@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
   Platform,
   Switch,
   ActivityIndicator,
@@ -22,6 +21,7 @@ import { colors } from '../../constants/colors';
 import { Priority, PRIORITIES, PRIORITY_ORDER } from '../../constants/priorities';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
+import { KeyboardAwareScrollView } from '../ui/KeyboardAwareScrollView';
 import { CreateTodoInput } from '../../services/todos.api';
 import { serializeTodoDateInTimeZone } from '../../services/timezone';
 import { useAuthStore } from '../../store/authStore';
@@ -291,7 +291,7 @@ export function TodoForm({
   }
 
   return (
-    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
+    <KeyboardAwareScrollView style={styles.container}>
       <Controller
         control={control}
         name="title"
@@ -516,7 +516,7 @@ export function TodoForm({
         loading={loading}
         style={styles.submitBtn}
       />
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, Alert, Platform } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -7,6 +7,7 @@ import { colors } from '../../constants/colors';
 import { Screen } from '../../components/ui/Screen';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { KeyboardAwareScrollView } from '../../components/ui/KeyboardAwareScrollView';
 import { authApi } from '../../services/auth.api';
 import { useAuthStore } from '../../store/authStore';
 import { signOutGoogle } from '../../services/googleSignIn';
@@ -76,7 +77,7 @@ export default function ProfileScreen() {
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={styles.container}>
+      <KeyboardAwareScrollView contentContainerStyle={styles.container}>
         <Text style={styles.label}>Email</Text>
         <Text style={styles.value}>{user?.email ?? ''}</Text>
 
@@ -135,7 +136,7 @@ export default function ProfileScreen() {
 
         <View style={{ height: 48 }} />
         <Button title="Log Out" variant="danger" onPress={onLogout} />
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </Screen>
   );
 }

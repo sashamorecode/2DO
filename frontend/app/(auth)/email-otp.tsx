@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Alert, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Alert, Platform, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { colors } from '../../constants/colors';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { KeyboardAwareScrollView } from '../../components/ui/KeyboardAwareScrollView';
 import { authApi } from '../../services/auth.api';
 import { useAuthStore } from '../../store/authStore';
 
@@ -52,12 +53,7 @@ export default function EmailOTPScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
-      style={styles.kav}
-    >
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+    <KeyboardAwareScrollView contentContainerStyle={styles.container}>
         <Text style={styles.title}>Check your email</Text>
         <Text style={styles.subtitle}>
           We sent a 6-digit code to <Text style={styles.email}>{email}</Text>
@@ -88,13 +84,11 @@ export default function EmailOTPScreen() {
             {!resending && <Text style={styles.resendBold}>Resend</Text>}
           </Text>
         </TouchableOpacity>
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAwareScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  kav: { flex: 1, backgroundColor: colors.bg },
   container: { paddingHorizontal: 24, paddingVertical: 32, flexGrow: 1 },
   title: { fontSize: 28, fontWeight: '800', color: colors.text, marginBottom: 8 },
   subtitle: { color: colors.textMuted, fontSize: 15, marginBottom: 32 },
