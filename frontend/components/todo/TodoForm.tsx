@@ -328,7 +328,7 @@ export function TodoForm({
         render={({ field: { onChange, value } }) => (
           <View style={styles.priorityRow}>
             {PRIORITY_ORDER.map((p) => {
-              const { color, label, description } = PRIORITIES[p];
+              const { color, label } = PRIORITIES[p];
               const selected = value === p;
               return (
                 <TouchableOpacity
@@ -340,9 +340,6 @@ export function TodoForm({
                   onPress={() => onChange(p)}
                 >
                   <Text style={[styles.priorityLabel, { color }]}>{label}</Text>
-                  <Text style={[styles.priorityDesc, { color: selected ? color : colors.textMuted }]}>
-                    {description}
-                  </Text>
                 </TouchableOpacity>
               );
             })}
