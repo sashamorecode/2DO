@@ -108,6 +108,7 @@ export default function EditTodoScreen() {
           deadlineHasTime: hasMeaningfulTodoTime(todo.deadline, 'end', timezone),
           plannedAt: parseTodoDateInTimeZone(todo.planned_at, timezone),
           plannedHasTime: hasMeaningfulTodoTime(todo.planned_at, 'morning', timezone),
+          steps: todo.steps ?? [],
           isPrivate: todo.is_private,
         }}
         onSubmit={handleSubmit}

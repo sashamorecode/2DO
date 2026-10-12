@@ -2,10 +2,18 @@ import { api } from './api';
 import { Priority } from '../constants/priorities';
 import { Tag } from './tags.api';
 
+export interface TodoStep {
+  id: string;
+  name: string;
+  completed: boolean;
+  position: number;
+}
+
 export interface Todo {
   id: string;
   user_id: string;
   tags: Tag[];
+  steps?: TodoStep[];
   title: string;
   description: string;
   priority: Priority;
@@ -26,6 +34,7 @@ export interface CreateTodoInput {
   deadline?: string | null;
   planned_at?: string | null;
   is_private?: boolean;
+  steps?: Array<{ name: string; completed: boolean }>;
 }
 
 export const todosApi = {

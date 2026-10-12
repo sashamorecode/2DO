@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
@@ -16,7 +17,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Calendar as CalendarIcon, Clock as ClockIcon, X, Lock } from 'lucide-react-native';
+import { Calendar as CalendarIcon, Clock as ClockIcon, Check, Plus, X, Lock } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 import { Priority, PRIORITIES, PRIORITY_ORDER } from '../../constants/priorities';
 import { Input } from '../ui/Input';
@@ -30,6 +31,11 @@ import { useOfflineStore } from '../../store/offlineStore';
 
 const TAG_COLOR_OPTIONS = ['#E07A91', '#E5B868', '#88B0A8', '#77A8D9', '#B48EFA', '#F38C63', '#7EC8E3', '#96D36D'];
 
+let nextStepKey = 0;
+function createStepKey(): string {
+  return `step-${Date.now()}-${nextStepKey++}`;
+}
+
 const schema = z.object({
   title: z.string().min(1, 'Title is required').max(255),
   description: z.string().optional(),
@@ -39,6 +45,7 @@ const schema = z.object({
   deadlineHasTime: z.boolean(),
   plannedAt: z.date().optional().nullable(),
   plannedHasTime: z.boolean(),
+  steps: z.array(z.object({ key: z.string(), name: z.string(), completed: z.boolean() })),
   isPrivate: z.boolean(),
 });
 
@@ -53,6 +60,7 @@ export interface TodoFormInitial {
   deadlineHasTime?: boolean;
   plannedAt?: Date | null;
   plannedHasTime?: boolean;
+  steps?: Array<{ name: string; completed: boolean }>;
   isPrivate?: boolean;
 }
 
@@ -81,6 +89,7 @@ const EMPTY_FORM: FormData = {
   deadlineHasTime: false,
   plannedAt: null,
   plannedHasTime: false,
+  steps: [],
   isPrivate: false,
 };
 
@@ -134,6 +143,11 @@ export function TodoForm({
       deadlineHasTime: initialValues?.deadlineHasTime ?? false,
       plannedAt: initialValues?.plannedAt ?? null,
       plannedHasTime: initialValues?.plannedHasTime ?? false,
+      steps: (initialValues?.steps ?? []).map(({ name, completed }) => ({
+        key: createStepKey(),
+        name,
+        completed,
+      })),
       isPrivate: initialValues?.isPrivate ?? false,
     },
   });
@@ -151,6 +165,9 @@ export function TodoForm({
         ? serializeTodoDateInTimeZone(data.plannedAt, data.plannedHasTime, 'morning', timezone)
         : null,
       is_private: data.isPrivate,
+      steps: data.steps
+        .filter((step) => step.name.trim().length > 0)
+        .map((step) => ({ name: step.name.trim(), completed: step.completed })),
     };
   }
 
@@ -235,6 +252,15 @@ export function TodoForm({
   );
 
   const selectedTagIds = watch('tagIds') ?? [];
+  const steps = watch('steps') ?? [];
+
+  function updateStep(key: string, changes: { name?: string; completed?: boolean }) {
+    setValue(
+      'steps',
+      getValues('steps').map((step) => step.key === key ? { ...step, ...changes } : step),
+      { shouldDirty: true }
+    );
+  }
 
   function toggleTag(tagID: string) {
     const exists = selectedTagIds.includes(tagID);
@@ -412,6 +438,59 @@ export function TodoForm({
         onDate={(d) => setValue('plannedAt', d, { shouldDirty: true })}
         onHasTime={(b) => setValue('plannedHasTime', b, { shouldDirty: true })}
       />
+
+      <View style={styles.stepsSection}>
+        <Text style={styles.label}>Steps</Text>
+        <View style={styles.stepsList}>
+          {steps.map((step) => (
+            <View key={step.key} style={styles.stepRow}>
+              <TouchableOpacity
+                accessibilityRole="checkbox"
+                accessibilityLabel={step.name.trim() || 'Step'}
+                accessibilityState={{ checked: step.completed }}
+                style={styles.stepToggle}
+                onPress={() => updateStep(step.key, { completed: !step.completed })}
+              >
+                <View style={[styles.stepCheckbox, step.completed && styles.stepCheckboxCompleted]}>
+                  {step.completed ? <Check size={14} color={colors.text} strokeWidth={2.6} /> : null}
+                </View>
+              </TouchableOpacity>
+              <TextInput
+                accessibilityLabel="Step name"
+                value={step.name}
+                onChangeText={(name) => updateStep(step.key, { name })}
+                placeholder="What is the next step?"
+                placeholderTextColor={colors.textMuted}
+                style={[styles.stepInput, step.completed && styles.stepInputCompleted]}
+              />
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={`Delete step${step.name.trim() ? `: ${step.name.trim()}` : ''}`}
+                style={styles.stepDelete}
+                onPress={() => setValue(
+                  'steps',
+                  getValues('steps').filter((row) => row.key !== step.key),
+                  { shouldDirty: true }
+                )}
+              >
+                <X size={16} color={colors.textDim} strokeWidth={2.4} />
+              </TouchableOpacity>
+            </View>
+          ))}
+          <TouchableOpacity
+            accessibilityRole="button"
+            style={styles.addStepBtn}
+            onPress={() => setValue(
+              'steps',
+              [...getValues('steps'), { key: createStepKey(), name: '', completed: false }],
+              { shouldDirty: true }
+            )}
+          >
+            <Plus size={14} color={colors.accentLight} strokeWidth={2.4} />
+            <Text style={styles.tagCreateToggleText}>Add step</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
       <Controller
         control={control}
@@ -659,6 +738,47 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderWidth: 1.5,
     borderColor: colors.border,
+  },
+  stepsSection: { marginBottom: 18 },
+  stepsList: { gap: 8 },
+  stepRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  stepToggle: { padding: 8 },
+  stepCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepCheckboxCompleted: { backgroundColor: colors.accent, borderColor: colors.accent },
+  stepInput: {
+    flex: 1,
+    minWidth: 0,
+    backgroundColor: colors.surface,
+    color: colors.text,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  stepInputCompleted: { textDecorationLine: 'line-through', color: colors.textDim },
+  stepDelete: { padding: 10 },
+  addStepBtn: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: colors.accentMuted,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: colors.surfaceAlt,
   },
   privateRow: {
     flexDirection: 'row',

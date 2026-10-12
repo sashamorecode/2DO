@@ -9,7 +9,7 @@ import Animated, {
   runOnJS,
   Easing,
 } from 'react-native-reanimated';
-import { ChevronRight, Lock } from 'lucide-react-native';
+import { ChevronRight, ListChecks, Lock } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 import { PRIORITIES } from '../../constants/priorities';
 import { Todo } from '../../services/todos.api';
@@ -51,6 +51,7 @@ export function TodoCard({
   const rotate = useSharedValue(0);
   const heightFactor = useSharedValue(1); // collapses the layout slot at the end
   const cardRef = useRef<View>(null);
+  const steps = todo.steps ?? [];
 
   const wrapperStyle = useAnimatedStyle(() => ({
     transform: [{ scaleY: heightFactor.value }],
@@ -146,6 +147,14 @@ export function TodoCard({
               <View style={styles.meta}>
                 <PriorityBadge priority={todo.priority} />
                 <DeadlineBadge deadline={todo.deadline} />
+                {steps.length > 0 ? (
+                  <View style={styles.stepProgress}>
+                    <ListChecks size={12} color={colors.textMuted} strokeWidth={2.2} />
+                    <Text style={styles.stepProgressText}>
+                      {steps.filter((step) => step.completed).length}/{steps.length} steps
+                    </Text>
+                  </View>
+                ) : null}
               </View>
             </View>
           </View>
@@ -192,6 +201,8 @@ const styles = StyleSheet.create({
   desc: { color: colors.textMuted, fontSize: 13 },
   tagsRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   meta: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
+  stepProgress: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  stepProgressText: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
   actionChip: {
     minWidth: 72,
     paddingHorizontal: 14,

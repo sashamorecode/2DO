@@ -60,6 +60,8 @@ type SyncTodo struct {
 	// TagIDs are the client-side tag IDs to associate. A nil slice means
 	// "leave associations untouched"; an empty (non-nil) slice clears them.
 	TagIDs []string `json:"tag_ids"`
+	// Steps follows the same omitted/preserve and empty/clear semantics.
+	Steps *[]stepInput `json:"steps"`
 	// ClientUpdatedAt is the ISO-8601 timestamp of the last local modification.
 	// Stored for audit/debugging; not used for conflict resolution (local-wins).
 	ClientUpdatedAt string `json:"client_updated_at"`
@@ -248,8 +250,12 @@ func (h *SyncHandler) upsertTodos(tx *gorm.DB, userID uuid.UUID, items []SyncTod
 			}
 		}
 
+		if err := replaceTodoSteps(tx, todo.ID, item.Steps); err != nil {
+			return nil, err
+		}
+
 		var reloaded models.Todo
-		if err := tx.Preload("Tags").First(&reloaded, "id = ?", id).Error; err != nil {
+		if err := tx.Preload("Tags").Preload("Steps", orderTodoSteps).First(&reloaded, "id = ?", todo.ID).Error; err != nil {
 			return nil, err
 		}
 		result = append(result, reloaded)

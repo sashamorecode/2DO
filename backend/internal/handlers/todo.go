@@ -31,13 +31,14 @@ type todoRequest struct {
 	PlannedAt   *time.Time      `json:"planned_at"`
 	IsPrivate   bool            `json:"is_private"`
 	TagIDs      []uuid.UUID     `json:"tag_ids"`
+	Steps       *[]stepInput    `json:"steps"`
 }
 
 func (h *TodoHandler) List(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	var todos []models.Todo
 	status := c.Query("status")
-	q := h.db.Model(&models.Todo{}).Preload("Tags").Where("user_id = ?", userID)
+	q := h.db.Model(&models.Todo{}).Preload("Tags").Preload("Steps", orderTodoSteps).Where("user_id = ?", userID)
 	if status != "" {
 		q = q.Where("status = ?", status)
 	}
@@ -107,7 +108,10 @@ func (h *TodoHandler) Create(c *gin.Context) {
 				return err
 			}
 		}
-		return tx.Preload("Tags").First(&todo, "id = ?", todo.ID).Error
+		if err := replaceTodoSteps(tx, todo.ID, req.Steps); err != nil {
+			return err
+		}
+		return tx.Preload("Tags").Preload("Steps", orderTodoSteps).First(&todo, "id = ?", todo.ID).Error
 	}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create todo"})
 		return
@@ -155,7 +159,7 @@ func (h *TodoHandler) Update(c *gin.Context) {
 	todo.IsPrivate = req.IsPrivate
 
 	if err := h.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Save(&todo).Error; err != nil {
+		if err := tx.Omit("Steps").Save(&todo).Error; err != nil {
 			return err
 		}
 		if tagsProvided {
@@ -163,7 +167,10 @@ func (h *TodoHandler) Update(c *gin.Context) {
 				return err
 			}
 		}
-		return tx.Preload("Tags").First(&todo, "id = ?", todo.ID).Error
+		if err := replaceTodoSteps(tx, todo.ID, req.Steps); err != nil {
+			return err
+		}
+		return tx.Preload("Tags").Preload("Steps", orderTodoSteps).First(&todo, "id = ?", todo.ID).Error
 	}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update todo"})
 		return
@@ -190,11 +197,11 @@ func (h *TodoHandler) Complete(c *gin.Context) {
 	now := time.Now()
 	todo.Status = models.StatusCompleted
 	todo.CompletedAt = &now
-	if err := h.db.Save(&todo).Error; err != nil {
+	if err := h.db.Omit("Steps").Save(&todo).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to complete todo"})
 		return
 	}
-	h.db.Preload("Tags").First(&todo, "id = ?", todo.ID)
+	h.db.Preload("Tags").Preload("Steps", orderTodoSteps).First(&todo, "id = ?", todo.ID)
 	c.JSON(http.StatusOK, todo)
 }
 
@@ -206,11 +213,11 @@ func (h *TodoHandler) Reopen(c *gin.Context) {
 	}
 	todo.Status = models.StatusPending
 	todo.CompletedAt = nil
-	if err := h.db.Save(&todo).Error; err != nil {
+	if err := h.db.Omit("Steps").Save(&todo).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to reopen todo"})
 		return
 	}
-	h.db.Preload("Tags").First(&todo, "id = ?", todo.ID)
+	h.db.Preload("Tags").Preload("Steps", orderTodoSteps).First(&todo, "id = ?", todo.ID)
 	c.JSON(http.StatusOK, todo)
 }
 
@@ -299,7 +306,7 @@ func (h *TodoHandler) findOwned(c *gin.Context, userID uuid.UUID) (models.Todo, 
 		return models.Todo{}, false
 	}
 	var todo models.Todo
-	if err := h.db.Preload("Tags").Where("id = ? AND user_id = ?", id, userID).First(&todo).Error; err != nil {
+	if err := h.db.Preload("Tags").Preload("Steps", orderTodoSteps).Where("id = ? AND user_id = ?", id, userID).First(&todo).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "todo not found"})
 		return models.Todo{}, false
 	}

@@ -1,7 +1,7 @@
 import { QueryClient } from '@tanstack/react-query';
 import { getIsOnline } from './networkStatus';
 import { useOfflineQueue } from './offlineQueue';
-import { todosApi, Todo, CreateTodoInput } from './todos.api';
+import { todosApi, Todo, TodoStep, CreateTodoInput } from './todos.api';
 import { Tag } from './tags.api';
 
 /**
@@ -52,6 +52,9 @@ function toSyncTodo(todo: Todo, tagIds?: string[] | null): Record<string, unknow
     status: todo.status,
     completed_at: todo.completed_at,
     tag_ids: tagIds ?? todo.tags.map((t) => t.id),
+    ...(todo.steps !== undefined && {
+      steps: todo.steps.map(({ name, completed }) => ({ name, completed })),
+    }),
     client_updated_at: todo.updated_at,
   };
 }
@@ -76,6 +79,18 @@ function enqueueTodoDelete(id: string): void {
   });
 }
 
+/** Give replacement steps local IDs until the server returns its own rows. */
+function optimisticSteps(steps: CreateTodoInput['steps']): TodoStep[] | undefined {
+  if (steps === undefined) return undefined;
+  const now = Date.now();
+  return steps.map(({ name, completed }, position) => ({
+    id: `local-${position}-${now}`,
+    name,
+    completed,
+    position,
+  }));
+}
+
 /** Create a skeleton Todo for optimistic UI. */
 function optimisticTodo(input: CreateTodoInput, userId: string, qc: QueryClient): Todo {
   const now = new Date().toISOString();
@@ -91,6 +106,7 @@ function optimisticTodo(input: CreateTodoInput, userId: string, qc: QueryClient)
     status: 'pending',
     completed_at: null,
     tags: resolveTags(qc, input.tag_ids),
+    steps: optimisticSteps(input.steps),
     created_at: now,
     updated_at: now,
   };
@@ -183,6 +199,7 @@ export function useOfflineTodoOps(qc: QueryClient, userId: string): OfflineTodoO
       status: existing?.status ?? 'pending',
       completed_at: existing?.completed_at ?? null,
       tags: resolveTags(qc, input.tag_ids),
+      steps: input.steps === undefined ? existing?.steps : optimisticSteps(input.steps),
       created_at: existing?.created_at ?? now,
       updated_at: now,
     };

@@ -29,6 +29,7 @@ func Connect(dsn string) *gorm.DB {
 		&models.User{},
 		&models.Tag{},
 		&models.Todo{},
+		&models.TodoStep{},
 		&models.TodoTag{},
 		&models.Friendship{},
 		&models.DeadlineNotification{},

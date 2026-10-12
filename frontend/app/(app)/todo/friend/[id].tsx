@@ -12,7 +12,9 @@ import { useQuery } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import {
   CalendarDays,
+  Check,
   CheckCircle2,
+  Circle,
   Clock,
   Eye,
 } from 'lucide-react-native';
@@ -73,6 +75,7 @@ export default function FriendTodoScreen() {
 
   const { todo, owner } = data;
   const ownerName = owner.username ?? 'Friend';
+  const steps = todo.steps ?? [];
 
   const dueText = todo.deadline
     ? formatTodoDateInTimeZone(todo.deadline, timezone, 'end')
@@ -146,6 +149,23 @@ export default function FriendTodoScreen() {
             value={doText}
             fallback="No do date"
           />
+          {steps.length > 0 ? (
+            <View style={styles.stepsSection}>
+              <Text style={styles.infoLabel}>Steps</Text>
+              {steps.map((step) => (
+                <View key={step.id} style={styles.stepRow}>
+                  {step.completed ? (
+                    <Check size={16} color={colors.success} strokeWidth={2.4} />
+                  ) : (
+                    <Circle size={16} color={colors.textMuted} strokeWidth={2.2} />
+                  )}
+                  <Text style={[styles.stepName, step.completed && styles.stepNameCompleted]}>
+                    {step.name}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
           {completedText ? (
             <InfoRow
               icon={<CheckCircle2 size={16} color={colors.success} strokeWidth={2.2} />}
@@ -284,6 +304,10 @@ const styles = StyleSheet.create({
   },
   infoValue: { color: colors.text, fontSize: 15, fontWeight: '600' },
   infoValueMuted: { color: colors.textMuted, fontSize: 15, fontStyle: 'italic' },
+  stepsSection: { gap: 10 },
+  stepRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  stepName: { flex: 1, color: colors.text, fontSize: 15 },
+  stepNameCompleted: { textDecorationLine: 'line-through', color: colors.textDim },
   errorTitle: {
     color: colors.text,
     fontSize: 20,

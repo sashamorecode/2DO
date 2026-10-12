@@ -79,6 +79,7 @@ func (h *FeedHandler) GetFeed(c *gin.Context) {
 	var todos []models.Todo
 	query := h.db.Preload("User").
 		Preload("Tags").
+		Preload("Steps", orderTodoSteps).
 		Where("user_id IN ? AND status = ? AND is_private = ?", friendIDs, status, false)
 
 	if status == models.StatusCompleted {
@@ -130,7 +131,7 @@ func (h *FeedHandler) GetTodo(c *gin.Context) {
 	}
 
 	var todo models.Todo
-	if err := h.db.Preload("Tags").Preload("User").Where("id = ?", id).First(&todo).Error; err != nil {
+	if err := h.db.Preload("Tags").Preload("Steps", orderTodoSteps).Preload("User").Where("id = ?", id).First(&todo).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "todo not found"})
 		return
 	}

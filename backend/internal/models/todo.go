@@ -27,6 +27,7 @@ type Todo struct {
 	UserID      uuid.UUID  `gorm:"type:uuid;not null;index" json:"user_id"`
 	User        *User      `gorm:"foreignKey:UserID" json:"user,omitempty"`
 	Tags        []Tag      `gorm:"many2many:todo_tags;constraint:OnDelete:CASCADE;" json:"tags"`
+	Steps       []TodoStep `gorm:"foreignKey:TodoID;constraint:OnDelete:CASCADE;" json:"steps"`
 	Title       string     `gorm:"not null;size:255" json:"title"`
 	Description string     `gorm:"type:text" json:"description"`
 	Priority    Priority   `gorm:"type:varchar(1);not null" json:"priority"`
@@ -43,12 +44,18 @@ func (t *Todo) BeforeCreate(tx *gorm.DB) error {
 	if t.ID == uuid.Nil {
 		t.ID = uuid.New()
 	}
+	if t.Steps == nil {
+		t.Steps = []TodoStep{}
+	}
 	return nil
 }
 
 func (t *Todo) AfterFind(tx *gorm.DB) error {
 	if t.Tags == nil {
 		t.Tags = []Tag{}
+	}
+	if t.Steps == nil {
+		t.Steps = []TodoStep{}
 	}
 	return nil
 }

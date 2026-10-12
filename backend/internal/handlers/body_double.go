@@ -130,7 +130,7 @@ func (h *BodyDoubleHandler) ListSessions(c *gin.Context) {
 	role := c.Query("role") // "requester" or "invitee" or empty for both
 
 	var sessions []models.BodyDoubleSession
-	query := h.db.Preload("Requester").Preload("Todo")
+	query := h.db.Preload("Requester").Preload("Todo").Preload("Todo.Steps", orderTodoSteps)
 
 	if role == "requester" {
 		query = query.Where("requester_id = ?", userID)
@@ -172,7 +172,7 @@ func (h *BodyDoubleHandler) GetSession(c *gin.Context) {
 	}
 
 	var session models.BodyDoubleSession
-	if err := h.db.Preload("Requester").Preload("Todo").
+	if err := h.db.Preload("Requester").Preload("Todo").Preload("Todo.Steps", orderTodoSteps).
 		Where("id = ? AND (requester_id = ? OR id IN (SELECT session_id FROM body_double_invitations WHERE invitee_id = ?))",
 			id, userID, userID).
 		First(&session).Error; err != nil {
@@ -212,7 +212,7 @@ func (h *BodyDoubleHandler) RespondToInvitation(c *gin.Context) {
 	}
 
 	var invitation models.BodyDoubleInvitation
-	if err := h.db.Preload("Session").Preload("Session.Requester").Preload("Session.Todo").Preload("Invitee").
+	if err := h.db.Preload("Session").Preload("Session.Requester").Preload("Session.Todo").Preload("Session.Todo.Steps", orderTodoSteps).Preload("Invitee").
 		Where("id = ? AND invitee_id = ? AND status = ?", id, userID, models.BodyDoublePending).
 		First(&invitation).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "invitation not found"})
@@ -224,7 +224,7 @@ func (h *BodyDoubleHandler) RespondToInvitation(c *gin.Context) {
 
 	err = h.db.Transaction(func(tx *gorm.DB) error {
 		invitation.Status = req.Status
-		if err := tx.Save(&invitation).Error; err != nil {
+		if err := tx.Omit("Session.Todo.Steps").Save(&invitation).Error; err != nil {
 			return err
 		}
 
@@ -236,12 +236,12 @@ func (h *BodyDoubleHandler) RespondToInvitation(c *gin.Context) {
 			}
 			title := "Body Doubling Session with " + username
 			todo := models.Todo{
-				UserID:     userID,
-				Title:      title,
-				Priority:   models.PriorityB,
-				PlannedAt:  &invitation.Session.ScheduledAt,
-				IsPrivate:  true,
-				Status:     models.StatusPending,
+				UserID:    userID,
+				Title:     title,
+				Priority:  models.PriorityB,
+				PlannedAt: &invitation.Session.ScheduledAt,
+				IsPrivate: true,
+				Status:    models.StatusPending,
 			}
 			if err := tx.Create(&todo).Error; err != nil {
 				return err
