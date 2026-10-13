@@ -13,6 +13,7 @@ if (!existsSync(androidRoot)) {
 const gradleWrapperPath = join(androidRoot, 'gradle/wrapper/gradle-wrapper.properties');
 const appBuildGradlePath = join(androidRoot, 'app/build.gradle');
 const gradlePropertiesPath = join(androidRoot, 'gradle.properties');
+const dynamicAppIconBuildGradlePath = join(frontendRoot, 'node_modules/expo-dynamic-app-icon/android/build.gradle');
 
 const releaseSigningHelpers = `def getReleaseSigningValue = { name ->
     def gradleValue = findProperty(name)
@@ -106,6 +107,28 @@ updateFile(gradlePropertiesPath, (content) => {
   }
 
   return next;
+});
+
+updateFile(dynamicAppIconBuildGradlePath, (content) => {
+  const originalJvmTargetBlock = `  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_11
+    targetCompatibility JavaVersion.VERSION_11
+  }
+
+  kotlinOptions {
+    jvmTarget = JavaVersion.VERSION_11.majorVersion
+  }`;
+  const patchedJvmTargetBlock = originalJvmTargetBlock.replace(/VERSION_11/g, 'VERSION_17');
+
+  if (content.includes(patchedJvmTargetBlock)) {
+    return content;
+  }
+
+  if (!content.includes(originalJvmTargetBlock)) {
+    throw new Error('Unable to locate the expo-dynamic-app-icon JVM target block in frontend/node_modules/expo-dynamic-app-icon/android/build.gradle');
+  }
+
+  return content.replace(originalJvmTargetBlock, patchedJvmTargetBlock);
 });
 
 updateFile(appBuildGradlePath, (content) => {
