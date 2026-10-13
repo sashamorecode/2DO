@@ -6,6 +6,7 @@
     "start": "expo start",
     "android": "expo run:android",
     "prepare:android": "node ./scripts/prepare-android-project.mjs",
+    "icons": "node scripts/generate-icon-variants.mjs",
     "ios": "expo run:ios",
     "web": "expo start --web",
     "dev:android": "expo run:android",
@@ -25,6 +26,7 @@
     "date-fns": "^4.1.0",
     "expo": "~54.0.36",
     "expo-constants": "~18.0.13",
+    "expo-dynamic-app-icon": "^1.2.0",
     "expo-linking": "~8.0.12",
     "expo-notifications": "~0.32.17",
     "expo-router": "~6.0.24",
@@ -51,6 +53,7 @@
   "devDependencies": {
     "@types/react": "~19.1.0",
     "babel-preset-expo": "~54.0.0",
+    "sharp": "^0.35.5",
     "typescript": "~5.9.2"
   },
   "private": true

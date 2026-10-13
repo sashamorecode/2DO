@@ -258,6 +258,17 @@ If an update contains native changes, users on the old binary will not receive i
 
 **Rule:** any change that needs a new binary must also bump `expo.version` in `frontend/app.json` before building the APK. Publish OTA updates only for changes that stay within that native version.
 
+### Dynamic app icon
+
+While any pending to-do sits past its do-date the launcher icon turns yellow; a pending to-do past its due-date turns it red, and red wins. Completed to-dos are ignored.
+
+- Status checks use locally cached tasks while the app is in the foreground, including on resume.
+- The icon variants are native build-time config and cannot ship via EAS Update OTA: bump `expo.version` in `frontend/app.json`, run `npx expo prebuild --platform android`, and distribute a new APK (see the rule above).
+- Regenerate `frontend/assets/icon-yellow.png` and `icon-red.png` from `icon.png` with `npm run icons` in `frontend`.
+- The plugin ships plain mipmaps, not adaptive icons, so Android 8+ launcher masking can differ from the default icon.
+- Launchers cache icons; after installing a build you may need to refresh the home screen or restart the launcher before a switch shows.
+- Switching icons briefly changes Android launcher-component enabled states and must not run during navigation; a change waits until the screen settles.
+
 ### First OTA-capable APK
 
 APKs built before OTA was added do not contain `expo-updates` and cannot receive updates. Everyone installs one OTA-capable APK once; from then on, JS-only updates arrive automatically.

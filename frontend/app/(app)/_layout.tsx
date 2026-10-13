@@ -5,9 +5,11 @@ import { colors } from '../../constants/colors';
 import { AnimatedTabIcon } from '../../components/ui/AnimatedTabIcon';
 import { CommitBadge } from '../../components/ui/CommitBadge';
 import { useTodoReminderSync } from '../../hooks/useTodoReminderSync';
+import { useDynamicAppIcon } from '../../hooks/useDynamicAppIcon';
 
 export default function AppLayout() {
   useTodoReminderSync();
+  useDynamicAppIcon();
   // Edge-to-edge Android draws behind the system navigation bar. Add its
   // inset to the tab bar height/padding so the tab buttons stay tappable.
   const insets = useSafeAreaInsets();
