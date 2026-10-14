@@ -17,8 +17,6 @@ export function DeadlineBadge({ deadline }: { deadline: string | null }) {
   const prefix = overdue ? 'Overdue ' : 'Due ';
   const label = prefix + formatDistanceToNow(date, { addSuffix: true });
 
-  const urgent = overdue || soonIn6h;
-
   return (
     <View
       style={[

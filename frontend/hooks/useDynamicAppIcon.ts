@@ -57,8 +57,13 @@ export function useDynamicAppIcon() {
     }
     try {
       const icon = api.getAppIcon();
-      lastSuccessfulState.current = icon === '' || icon === 'DEFAULT'
-        ? 'DEFAULT' : icon === 'yellow' || icon === 'red' ? icon : null;
+      const knownStates: Record<string, IconState> = {
+        '': 'DEFAULT',
+        DEFAULT: 'DEFAULT',
+        yellow: 'yellow',
+        red: 'red',
+      };
+      lastSuccessfulState.current = knownStates[icon] ?? null;
     } catch (error) {
       warnOnce(error);
     }
