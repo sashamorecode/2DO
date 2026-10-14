@@ -17,15 +17,34 @@ export function DeadlineBadge({ deadline }: { deadline: string | null }) {
   const prefix = overdue ? 'Overdue ' : 'Due ';
   const label = prefix + formatDistanceToNow(date, { addSuffix: true });
 
+  const urgent = overdue || soonIn6h;
+
   return (
-    <View style={styles.row}>
-      <Icon size={11} color={color} strokeWidth={2.4} />
-      <Text style={[styles.text, { color }]}>{label}</Text>
+    <View
+      style={[
+        styles.chip,
+        soonIn6h && { backgroundColor: `${colors.warning}26`, borderColor: `${colors.warning}55` },
+        overdue && { backgroundColor: `${colors.error}2E`, borderColor: `${colors.error}80` },
+      ]}
+    >
+      <Icon size={12} color={color} strokeWidth={2.8} />
+      <Text style={[styles.text, { color }, overdue && styles.textOverdue]}>{label}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  text: { fontSize: 12, fontWeight: '600' },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  text: { fontSize: 12, fontWeight: '700' },
+  textOverdue: { fontWeight: '800', letterSpacing: 0.2 },
 });

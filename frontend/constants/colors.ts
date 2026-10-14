@@ -33,8 +33,8 @@ export const colors = {
   priorityB: '#E5B868', // Should-Do — butter
   priorityC: '#88B0A8', // Can-Do — sage
 
-  // Status
+  // Status — loud urgency colors for late/due-soon states
   success: '#88B0A8',
-  warning: '#E5B868',
-  error: '#E07A91',
+  warning: '#FF8A00', // hot orange — due soon
+  error: '#FF3B30',   // alarm red — overdue
 } as const;
