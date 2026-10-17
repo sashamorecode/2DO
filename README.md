@@ -76,7 +76,8 @@ cd frontend && npx expo start --port 9081
 | `EXPO_ACCESS_TOKEN` | _(empty)_ | Optional — only authenticates requests to Expo's Push API (required by Expo when enhanced push security is enabled). Does **not** disable push when left empty |
 | `GOOGLE_CLIENT_IDS` | _(empty)_ | Comma-separated list of allowed OAuth 2.0 client IDs (iOS, Android, Web) used to verify Google ID tokens |
 | `RESEND_API_KEY` | _(empty)_ | Resend API key for sending OTP emails |
-| `EMAIL_FROM` | `2Do <onboarding@resend.dev>` | "From" address on OTP emails. Use Resend's sandbox sender for dev; switch to a verified domain for prod |
+| `EMAIL_FROM` | `2Do <onboarding@resend.dev>` | "From" address on OTP emails. The sandbox sender only delivers to the Resend account owner's address; use an address on a verified domain in prod |
+| `EMAIL_DOMAIN` | `sashasalzanoweir.com` | Production only — `docker-compose.prod.yml` builds `EMAIL_FROM` from this verified Resend domain |
 
 ### `frontend/.env`
 
@@ -333,8 +334,8 @@ Then:
 
 1. Create an account at [resend.com](https://resend.com) and copy the API key
 2. Set `RESEND_API_KEY` in `backend/.env`
-3. For dev, leave `EMAIL_FROM=2Do <onboarding@resend.dev>` (Resend's sandbox sender)
-4. For prod, verify your domain in Resend and set `EMAIL_FROM` to an address on it
+3. For dev, leave `EMAIL_FROM=2Do <onboarding@resend.dev>` (Resend's sandbox sender). It can only send to the email address that owns the Resend account.
+4. For prod, verify your domain in Resend and set `EMAIL_DOMAIN` in the production env file to that domain. `docker-compose.prod.yml` sends as `2Do <no-reply@$EMAIL_DOMAIN>`.
 
 Rate limits: each email may request a new code at most once per 60 seconds and 5 times per hour.
 

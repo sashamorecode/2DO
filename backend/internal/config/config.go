@@ -44,6 +44,14 @@ func Load() *Config {
 		}
 	}
 
+	devMode := strings.ToLower(os.Getenv("DEV_MODE")) == "true"
+	resendAPIKey := os.Getenv("RESEND_API_KEY")
+	emailFrom := getEnv("EMAIL_FROM", "2Do <onboarding@resend.dev>")
+
+	if !devMode && (resendAPIKey == "" || strings.Contains(emailFrom, "@resend.dev")) {
+		log.Printf("WARNING: email sign-in is misconfigured: set RESEND_API_KEY and EMAIL_FROM to an address on a domain verified in Resend (current EMAIL_FROM=%q)", emailFrom)
+	}
+
 	return &Config{
 		DatabaseURL:           getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:9432/twodo?sslmode=disable"),
 		JWTSecret:             getEnv("JWT_SECRET", "change-me-in-production"),
@@ -51,9 +59,9 @@ func Load() *Config {
 		WorkerIntervalMinutes: workerInterval,
 		ExpoAccessToken:       os.Getenv("EXPO_ACCESS_TOKEN"),
 		GoogleClientIDs:       googleClientIDs,
-		ResendAPIKey:          os.Getenv("RESEND_API_KEY"),
-		EmailFrom:             getEnv("EMAIL_FROM", "2Do <onboarding@resend.dev>"),
-		DevMode:               strings.ToLower(os.Getenv("DEV_MODE")) == "true",
+		ResendAPIKey:          resendAPIKey,
+		EmailFrom:             emailFrom,
+		DevMode:               devMode,
 	}
 }
 

@@ -24,6 +24,9 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-twodo}?sslmode=disable
       PORT: ${PORT:-9000}
+      # Resend's onboarding@resend.dev sandbox only delivers to the Resend account
+      # owner. Production must send from a verified domain.
+      EMAIL_FROM: "2Do <no-reply@${EMAIL_DOMAIN:-sashasalzanoweir.com}>"
     expose:
       - "9000"
     depends_on:
