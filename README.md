@@ -265,7 +265,8 @@ While any pending to-do sits past its do-date the launcher icon turns yellow; a 
 
 - Status checks use locally cached tasks while the app is in the foreground, including on resume.
 - The icon variants are native build-time config and cannot ship via EAS Update OTA: bump `expo.version` in `frontend/app.json`, run `npx expo prebuild --platform android`, and distribute a new APK (see the rule above).
-- Regenerate `frontend/assets/icon-yellow.png` and `icon-red.png` from `icon.png` with `npm run icons` in `frontend`.
+- `frontend/assets/icon-source.png` is the single transparent logo master. Run `npm run icons` in `frontend` to regenerate every icon from it: the default, yellow and red legacy icons, the adaptive foregrounds, the round icon, the splash logo, the notification glyph (white on transparent) and the favicon.
+- All launcher icons are flattened onto `#1F0A1D` with the logo scaled into the 66/108 adaptive-icon safe zone, so no launcher can show white around the logo and circle/squircle masks do not clip it.
 - The red/yellow variants ship as adaptive icons (`mipmap-anydpi-v26/red.xml`/`yellow.xml` plus per-density `ic_launcher_foreground_*` PNGs) so Android 8+ renders them like the default icon instead of masking a legacy square into a white circle. `npm run icons` regenerates these after every `expo prebuild`; the `expo-dynamic-app-icon` plugin keeps the legacy `red.png`/`yellow.png` mipmaps as pre-Android 8 fallbacks.
 - Launchers cache icons; after installing a build you may need to refresh the home screen or restart the launcher before a switch shows.
 - Switching icons briefly changes Android launcher-component enabled states and must not run during navigation; a change waits until the screen settles.
