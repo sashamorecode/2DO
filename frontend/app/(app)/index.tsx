@@ -35,6 +35,8 @@ import { SessionCard } from '../../components/bodyDouble/SessionCard';
 import { formatDateTimeInTimeZone } from '../../services/timezone';
 import { useOfflineStore } from '../../store/offlineStore';
 import { useOfflineTodoOps } from '../../services/todos.api.offline';
+import { sortTodoGroup } from '../../services/todoOrder';
+import { ReorderableTaskBoard } from '../../components/todo/ReorderableTaskBoard';
 
 type PrimaryTab = 'mine' | 'friends';
 type SecondaryTab = 'active' | 'calendar' | 'done';
@@ -164,7 +166,7 @@ export default function TasksScreen() {
       PRIORITY_ORDER.map((priority) => ({
         priority,
         meta: PRIORITIES[priority],
-        data: sortByAnchorDate(myPendingFiltered.filter((todo) => todo.priority === priority)),
+        data: sortTodoGroup(myPendingFiltered.filter((todo) => todo.priority === priority)),
       })).filter((group) => group.data.length > 0),
     [myPendingFiltered]
   );
@@ -338,12 +340,20 @@ export default function TasksScreen() {
       </View>
 
       {primaryTab === 'mine' && secondaryTab === 'active' ? (
-        <PriorityBoard
+        <ReorderableTaskBoard
           groups={importanceGroups}
           loading={myPendingQuery.isLoading}
           onRefresh={onRefresh}
           onComplete={(id) => completeMutation.mutate(id)}
           onPress={(todo) => router.push(`/(app)/todo/${todo.id}`)}
+          onReorder={(ids) => { void offlineOps.reorderTodos(ids); }}
+          empty={
+            <EmptyState
+              icon={<PartyPopper size={56} color={colors.accentLight} strokeWidth={1.6} />}
+              title="All clear"
+              description="No active tasks right now. Add one and it will land here."
+            />
+          }
         />
       ) : null}
 
@@ -416,56 +426,6 @@ export default function TasksScreen() {
         />
       ) : null}
     </Screen>
-  );
-}
-
-function PriorityBoard({
-  groups,
-  loading,
-  onRefresh,
-  onComplete,
-  onPress,
-}: {
-  groups: Array<{ priority: string; meta: { label: string; color: string }; data: Todo[] }>;
-  loading: boolean;
-  onRefresh: () => void;
-  onComplete: (id: string) => void;
-  onPress: (todo: Todo) => void;
-}) {
-  return (
-    <FlatList
-      data={groups}
-      keyExtractor={(group) => group.priority}
-      contentContainerStyle={styles.list}
-      refreshControl={
-        <RefreshControl refreshing={loading} onRefresh={onRefresh} tintColor={colors.accent} />
-      }
-      renderItem={({ item: group }) => (
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={[styles.sectionTitle, { color: group.meta.color }]}>{group.meta.label}</Text>
-            <Text style={styles.sectionCount}>{group.data.length}</Text>
-          </View>
-          {group.data.map((todo) => (
-            <TodoCard
-              key={todo.id}
-              todo={todo}
-              onComplete={onComplete}
-              onPress={onPress}
-            />
-          ))}
-        </View>
-      )}
-      ListEmptyComponent={
-        !loading ? (
-          <EmptyState
-            icon={<PartyPopper size={56} color={colors.accentLight} strokeWidth={1.6} />}
-            title="All clear"
-            description="No active tasks right now. Add one and it will land here."
-          />
-        ) : null
-      }
-    />
   );
 }
 

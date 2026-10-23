@@ -28,6 +28,7 @@ interface Props {
   actionTitle?: string;
   onActionPress?: () => void;
   actionLoading?: boolean;
+  dragHandle?: React.ReactNode;
 }
 
 // Total drama window. The card collapses around the BURST_AT mark; the
@@ -45,6 +46,7 @@ export function TodoCard({
   actionTitle,
   onActionPress,
   actionLoading,
+  dragHandle,
 }: Props) {
   const scale = useSharedValue(1);
   const opacity = useSharedValue(1);
@@ -82,6 +84,7 @@ export function TodoCard({
   }
 
   function handleComplete() {
+    if (!onComplete) return;
 
     // Phase 1 — anticipation: card grows, wiggles, holds opacity.
     scale.value = withSequence(
@@ -124,6 +127,7 @@ export function TodoCard({
           onPress={() => onPress?.(todo)}
           activeOpacity={0.85}
           disabled={!onPress}
+          accessible={dragHandle ? false : undefined}
         >
           <View style={styles.left}>
             {!readOnly && <CompletionButton onComplete={handleComplete} />}
@@ -173,7 +177,7 @@ export function TodoCard({
                 )}
               </TouchableOpacity>
             ) : null}
-            {onPress && <ChevronRight size={20} color={colors.textDim} strokeWidth={2.2} />}
+            {dragHandle ?? (onPress && <ChevronRight size={20} color={colors.textDim} strokeWidth={2.2} />)}
           </View>
         </TouchableOpacity>
       </Animated.View>

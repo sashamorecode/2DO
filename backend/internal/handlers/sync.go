@@ -39,7 +39,7 @@ var errSyncOwnership = errors.New("sync resource owned by another user")
 // --- request / response types ---
 
 type SyncRequest struct {
-	Todos []SyncTodo `json:"todos"`
+	Todos []SyncTodo `json:"todos" binding:"dive"`
 	Tags  []SyncTag  `json:"tags"`
 	// DeletedTodoIDs / DeletedTagIDs are tombstones for rows removed locally.
 	// They are deleted server-side, but only when owned by the caller.
@@ -52,6 +52,7 @@ type SyncTodo struct {
 	Title       string  `json:"title" binding:"required,max=255"`
 	Description string  `json:"description"`
 	Priority    string  `json:"priority" binding:"required,oneof=A B C"`
+	SortOrder   *int    `json:"sort_order" binding:"omitempty,gte=0"`
 	Deadline    *string `json:"deadline"`
 	PlannedAt   *string `json:"planned_at"`
 	IsPrivate   bool    `json:"is_private"`
@@ -213,6 +214,7 @@ func (h *SyncHandler) upsertTodos(tx *gorm.DB, userID uuid.UUID, items []SyncTod
 			Title:       item.Title,
 			Description: item.Description,
 			Priority:    models.Priority(item.Priority),
+			SortOrder:   item.SortOrder,
 			IsPrivate:   item.IsPrivate,
 			Status:      models.TodoStatus(item.Status),
 		}
@@ -227,13 +229,18 @@ func (h *SyncHandler) upsertTodos(tx *gorm.DB, userID uuid.UUID, items []SyncTod
 		}
 
 		// Upsert by client ID; the client is the source of truth.
+		columns := []string{
+			"user_id", "title", "description", "priority",
+			"deadline", "planned_at", "is_private",
+			"status", "completed_at", "updated_at",
+		}
+		// Older clients omit ordering. Their edits must preserve saved ranks.
+		if item.SortOrder != nil {
+			columns = append(columns, "sort_order")
+		}
 		if err := tx.Clauses(clause.OnConflict{
-			Columns: []clause.Column{{Name: "id"}},
-			DoUpdates: clause.AssignmentColumns([]string{
-				"user_id", "title", "description", "priority",
-				"deadline", "planned_at", "is_private",
-				"status", "completed_at", "updated_at",
-			}),
+			Columns:   []clause.Column{{Name: "id"}},
+			DoUpdates: clause.AssignmentColumns(columns),
 		}).Create(&todo).Error; err != nil {
 			return nil, err
 		}

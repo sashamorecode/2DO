@@ -4,7 +4,7 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { persistQueryClient } from '@tanstack/react-query-persist-client';
 import { useAuthStore } from '../store/authStore';
-import { View } from 'react-native';
+import { AppViewport } from '../components/ui/AppViewport';
 import { useNotifications } from '../hooks/useNotifications';
 import { configureGoogleSignIn } from '../services/googleSignIn';
 import { CelebrationHost } from '../components/completion/Celebration';
@@ -88,10 +88,10 @@ export default function RootLayout() {
   return (
     <KeyboardProvider>
       <QueryClientProvider client={queryClient}>
-        <View style={{ flex: 1 }}>
+        <AppViewport>
           <AuthGuard />
           <CelebrationHost />
-        </View>
+        </AppViewport>
       </QueryClientProvider>
     </KeyboardProvider>
   );

@@ -31,6 +31,7 @@ type Todo struct {
 	Title       string     `gorm:"not null;size:255" json:"title"`
 	Description string     `gorm:"type:text" json:"description"`
 	Priority    Priority   `gorm:"type:varchar(1);not null" json:"priority"`
+	SortOrder   *int       `json:"sort_order"`
 	Deadline    *time.Time `json:"deadline"`
 	PlannedAt   *time.Time `json:"planned_at"`
 	IsPrivate   bool       `gorm:"not null;default:false" json:"is_private"`

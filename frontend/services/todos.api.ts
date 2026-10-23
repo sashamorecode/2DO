@@ -1,6 +1,7 @@
 import { api } from './api';
 import { Priority } from '../constants/priorities';
 import { Tag } from './tags.api';
+import { getQueue } from './offlineQueue';
 
 export interface TodoStep {
   id: string;
@@ -17,6 +18,7 @@ export interface Todo {
   title: string;
   description: string;
   priority: Priority;
+  sort_order?: number | null;
   deadline: string | null;
   planned_at: string | null;
   is_private: boolean;
@@ -37,6 +39,12 @@ export interface CreateTodoInput {
   steps?: Array<{ name: string; completed: boolean }>;
 }
 
+function withQueuedOrder(todo: Todo): Todo {
+  const pending = getQueue().find((entry) => entry.resource === 'todo' && entry.resourceId === todo.id && entry.op === 'upsert');
+  const rank = pending?.payload?.sort_order;
+  return typeof rank === 'number' ? { ...todo, sort_order: rank } : todo;
+}
+
 export const todosApi = {
   list: (params?: { status?: string; priority?: string; urgency?: string; tag_ids?: string[] }) =>
     api
@@ -48,25 +56,25 @@ export const todosApi = {
           tag_ids: params?.tag_ids?.join(','),
         },
       })
-      .then((r) => r.data),
+      .then((r) => (r.data ?? []).map(withQueuedOrder)),
 
   get: (id: string) =>
-    api.get<Todo>(`/todos/${id}`).then((r) => r.data),
+    api.get<Todo>(`/todos/${id}`).then((r) => withQueuedOrder(r.data)),
 
   create: (data: CreateTodoInput) =>
     api.post<Todo>('/todos', data).then((r) => r.data),
 
   update: (id: string, data: CreateTodoInput) =>
-    api.put<Todo>(`/todos/${id}`, data).then((r) => r.data),
+    api.put<Todo>(`/todos/${id}`, data).then((r) => withQueuedOrder(r.data)),
 
   delete: (id: string) =>
     api.delete(`/todos/${id}`).then((r) => r.data),
 
   complete: (id: string) =>
-    api.patch<Todo>(`/todos/${id}/complete`).then((r) => r.data),
+    api.patch<Todo>(`/todos/${id}/complete`).then((r) => withQueuedOrder(r.data)),
 
   reopen: (id: string) =>
-    api.patch<Todo>(`/todos/${id}/reopen`).then((r) => r.data),
+    api.patch<Todo>(`/todos/${id}/reopen`).then((r) => withQueuedOrder(r.data)),
 
   poke: (id: string) =>
     api.post<{ ok: boolean; delivered?: boolean }>(`/todos/${id}/poke`).then((r) => r.data),

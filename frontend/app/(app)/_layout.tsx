@@ -17,6 +17,7 @@ export default function AppLayout() {
     <Tabs
       initialRouteName="index"
       screenOptions={{
+        tabBarHideOnKeyboard: true,
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,

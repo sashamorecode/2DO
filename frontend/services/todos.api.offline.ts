@@ -3,6 +3,8 @@ import { getIsOnline } from './networkStatus';
 import { useOfflineQueue } from './offlineQueue';
 import { todosApi, Todo, TodoStep, CreateTodoInput } from './todos.api';
 import { Tag } from './tags.api';
+import { orderTodoGroup } from './todoOrder';
+import { processSyncQueue } from './sync';
 
 /**
  * Offline-aware todo mutations.
@@ -46,6 +48,7 @@ function toSyncTodo(todo: Todo, tagIds?: string[] | null): Record<string, unknow
     title: todo.title,
     description: todo.description,
     priority: todo.priority,
+    ...(todo.sort_order != null && { sort_order: todo.sort_order }),
     deadline: todo.deadline,
     planned_at: todo.planned_at,
     is_private: todo.is_private,
@@ -77,6 +80,10 @@ function enqueueTodoDelete(id: string): void {
     payload: null,
     clientUpdatedAt: new Date().toISOString(),
   });
+}
+
+function hasQueuedTodo(id: string): boolean {
+  return useOfflineQueue.getState().queue.some((entry) => entry.resource === 'todo' && entry.resourceId === id);
 }
 
 /** Give replacement steps local IDs until the server returns its own rows. */
@@ -147,6 +154,7 @@ export interface OfflineTodoOps {
   deleteTodo: (id: string) => Promise<void>;
   completeTodo: (id: string) => Promise<Todo>;
   reopenTodo: (id: string) => Promise<Todo>;
+  reorderTodos: (orderedIds: string[]) => Promise<void>;
   refreshPendingCount: () => void;
 }
 
@@ -193,6 +201,7 @@ export function useOfflineTodoOps(qc: QueryClient, userId: string): OfflineTodoO
       title: input.title,
       description: input.description ?? existing?.description ?? '',
       priority: input.priority,
+      sort_order: existing?.sort_order,
       deadline: input.deadline ?? null,
       planned_at: input.planned_at ?? null,
       is_private: input.is_private ?? false,
@@ -205,6 +214,14 @@ export function useOfflineTodoOps(qc: QueryClient, userId: string): OfflineTodoO
     };
 
     updateInCaches(qc, optimistic);
+
+    // An order snapshot may already be in flight. Coalesce later edits into
+    // its queue so that snapshot cannot restore older task content/status.
+    if (hasQueuedTodo(id)) {
+      enqueueTodoUpsert(optimistic, input.tag_ids);
+      await processSyncQueue();
+      return optimistic;
+    }
 
     if (getIsOnline()) {
       try {
@@ -223,6 +240,12 @@ export function useOfflineTodoOps(qc: QueryClient, userId: string): OfflineTodoO
 
   async function deleteTodo(id: string): Promise<void> {
     removeFromCaches(qc, id);
+
+    if (hasQueuedTodo(id)) {
+      enqueueTodoDelete(id);
+      await processSyncQueue();
+      return;
+    }
 
     if (getIsOnline()) {
       try {
@@ -261,6 +284,12 @@ export function useOfflineTodoOps(qc: QueryClient, userId: string): OfflineTodoO
         return todosApi.complete(id);
       }
       throw new Error('todo not found');
+    }
+
+    if (hasQueuedTodo(id)) {
+      enqueueTodoUpsert(completed);
+      await processSyncQueue();
+      return completed;
     }
 
     if (getIsOnline()) {
@@ -305,6 +334,12 @@ export function useOfflineTodoOps(qc: QueryClient, userId: string): OfflineTodoO
       throw new Error('todo not found');
     }
 
+    if (hasQueuedTodo(id)) {
+      enqueueTodoUpsert(reopened);
+      await processSyncQueue();
+      return reopened;
+    }
+
     if (getIsOnline()) {
       try {
         const server = await todosApi.reopen(id);
@@ -320,12 +355,27 @@ export function useOfflineTodoOps(qc: QueryClient, userId: string): OfflineTodoO
     }
   }
 
+  async function reorderTodos(orderedIds: string[]): Promise<void> {
+    // Cancel stale fetches before writing, then queue all ranks as one sync
+    // batch. Queue entries survive restarts and coalesce during repeated drags.
+    await qc.cancelQueries({ queryKey: ['todos'] });
+    const updates = orderTodoGroup(qc.getQueryData<Todo[]>(['todos', 'pending']) ?? [], orderedIds);
+    const now = new Date().toISOString();
+    for (const todo of updates) {
+      const updated = { ...todo, updated_at: now };
+      updateInCaches(qc, updated);
+      enqueueTodoUpsert(updated);
+    }
+    if (updates.length > 0 && getIsOnline()) await processSyncQueue();
+  }
+
   return {
     createTodo,
     updateTodo,
     deleteTodo,
     completeTodo,
     reopenTodo,
+    reorderTodos,
     refreshPendingCount,
   };
 }

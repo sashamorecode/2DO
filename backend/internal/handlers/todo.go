@@ -68,8 +68,8 @@ func (h *TodoHandler) List(c *gin.Context) {
 		// Most recently finished first
 		q = q.Order("completed_at DESC NULLS LAST")
 	} else {
-		// Pending list: A → B → C, then earliest deadline first
-		q = q.Order("CASE priority WHEN 'A' THEN 1 WHEN 'B' THEN 2 ELSE 3 END, deadline ASC NULLS LAST")
+		// Pending list: importance, saved order, then dates for unranked tasks.
+		q = q.Order("CASE priority WHEN 'A' THEN 1 WHEN 'B' THEN 2 ELSE 3 END, sort_order ASC NULLS LAST, COALESCE(planned_at, deadline) ASC NULLS LAST, created_at ASC, id ASC")
 	}
 	q.Find(&todos)
 	c.JSON(http.StatusOK, todos)
@@ -159,7 +159,7 @@ func (h *TodoHandler) Update(c *gin.Context) {
 	todo.IsPrivate = req.IsPrivate
 
 	if err := h.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Omit("Steps").Save(&todo).Error; err != nil {
+		if err := tx.Omit("Steps", "SortOrder").Save(&todo).Error; err != nil {
 			return err
 		}
 		if tagsProvided {
@@ -197,7 +197,7 @@ func (h *TodoHandler) Complete(c *gin.Context) {
 	now := time.Now()
 	todo.Status = models.StatusCompleted
 	todo.CompletedAt = &now
-	if err := h.db.Omit("Steps").Save(&todo).Error; err != nil {
+	if err := h.db.Omit("Steps", "SortOrder").Save(&todo).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to complete todo"})
 		return
 	}
@@ -213,7 +213,7 @@ func (h *TodoHandler) Reopen(c *gin.Context) {
 	}
 	todo.Status = models.StatusPending
 	todo.CompletedAt = nil
-	if err := h.db.Omit("Steps").Save(&todo).Error; err != nil {
+	if err := h.db.Omit("Steps", "SortOrder").Save(&todo).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to reopen todo"})
 		return
 	}

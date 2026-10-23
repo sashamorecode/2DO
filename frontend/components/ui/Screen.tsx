@@ -22,6 +22,6 @@ export function Screen({ children, style, edges = ['left', 'right'], ...rest }: 
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
-  container: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1, minHeight: 0, backgroundColor: colors.bg },
+  container: { flex: 1, minHeight: 0, backgroundColor: colors.bg },
 });

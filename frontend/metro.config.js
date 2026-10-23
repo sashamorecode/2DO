@@ -10,11 +10,11 @@ const config = getDefaultConfig(__dirname);
 // Adding "react-native" makes zustand resolve to its CJS build (which
 // doesn't use import.meta), because zustand maps the "react-native"
 // condition to its CJS files. Other packages without a "react-native"
-// condition are unaffected — they fall through to "require"/"import".
+// condition fall through to CommonJS. Also asserting "import" here selects
+// ESM Babel helpers for generated require() calls and breaks the web bundle.
 config.resolver.unstable_conditionNames = [
   'react-native',
   'require',
-  'import',
 ];
 
 module.exports = config;

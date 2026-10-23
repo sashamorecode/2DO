@@ -158,6 +158,31 @@ base64 -w0 deploy/.env.example
 
 ## Useful Commands
 
+Task ordering and viewport checks:
+
+```bash
+cd frontend
+npm test
+npx tsc --noEmit
+```
+
+The Active task list supports dragging the grip on a card to reorder within
+its importance group. Arrow keys and screen reader move actions also work.
+Ordering is cached and queued offline, then saved through `/sync`. Calendar
+continues to sort by date. The backend adds the nullable `sort_order` column
+through its existing startup migration.
+
+`AppViewport` owns keyboard avoidance above navigation. Input screens should
+use the shared `KeyboardAwareScrollView`, which reveals focus inside its
+measured bounds without adding keyboard height again. This applies to task
+steps, descriptions, tag creation, profile fields, and sign-in forms.
+
+The PostgreSQL integration tests run with `TODO_STEPS_TEST_DSN` set. They create
+isolated schemas inside transactions and roll them back. Before releasing,
+check a real device with several task steps: focus the last step, switch to
+the description with the keyboard open, close the keyboard, and verify the
+layout returns to full height. Check a touch drag near each list edge too.
+
 **View backend + DB logs:**
 ```bash
 docker compose logs -f

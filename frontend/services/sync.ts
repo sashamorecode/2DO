@@ -23,7 +23,7 @@ import { useAuthStore } from '../store/authStore';
 
 let syncing = false;
 
-export async function processSyncQueue(): Promise<void> {
+export async function processSyncQueue(remainingBatches = 10): Promise<void> {
   if (syncing) return;
   if (!getIsOnline()) return;
   // The queue rehydrates from storage before the token does; never push it
@@ -35,11 +35,13 @@ export async function processSyncQueue(): Promise<void> {
 
   syncing = true;
   const flushedIds = queue.map((m) => m.id);
+  let accepted = false;
 
   try {
     await todosApi.sync(buildPayload(queue));
     useOfflineQueue.getState().removeMany(flushedIds);
-    await reconcileCaches();
+    accepted = true;
+    if (getQueue().length === 0) await reconcileCaches();
   } catch (err: any) {
     if (isNonRetryable(err)) {
       console.warn(
@@ -58,6 +60,9 @@ export async function processSyncQueue(): Promise<void> {
   } finally {
     syncing = false;
   }
+  // Edits made while the request was running have new queue IDs. Flush those
+  // before refetching so an earlier response cannot undo a later drag.
+  if (accepted && remainingBatches > 1 && getQueue().length > 0) await processSyncQueue(remainingBatches - 1);
 }
 
 function buildPayload(queue: QueuedMutation[]): SyncPayload {
