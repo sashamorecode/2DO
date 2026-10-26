@@ -18,7 +18,7 @@ An ADHD-friendly todo app with social peer-pressure mechanics. Complete tasks, s
 ## Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/) (includes Docker Compose)
-- [Node.js 18+](https://nodejs.org) (for the Expo frontend)
+- [Node.js 24.22.1 or newer in the 24.x line](https://nodejs.org) (for the Expo frontend, pinned in `.nvmrc`)
 - An iOS/Android simulator or a physical device with an **Expo dev client** build
   (Expo Go is not supported — `@react-native-google-signin/google-signin` is a
   native module and requires a custom dev client built via EAS or `expo prebuild`)
@@ -26,6 +26,10 @@ An ADHD-friendly todo app with social peer-pressure mechanics. Complete tasks, s
 - A [Resend](https://resend.com) account for sending email sign-in codes
 
 No local Go or PostgreSQL installation required — both run in Docker.
+
+Node.js 24.22.1 includes the fix for
+[CVE-2026-111497](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases).
+Both frontend release workflows read the version from `.nvmrc`.
 
 ---
 
@@ -35,6 +39,8 @@ No local Go or PostgreSQL installation required — both run in Docker.
 # 1. Clone
 git clone <repo-url>
 cd 2Do
+nvm install
+nvm use
 
 # 2. Set up env files (one-time — backend.sh does this automatically for the backend)
 cp backend/.env.example backend/.env
