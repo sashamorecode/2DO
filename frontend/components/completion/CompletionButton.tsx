@@ -7,15 +7,15 @@ import Animated, {
   withTiming,
   Easing,
 } from 'react-native-reanimated';
-import { Check } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 
 interface Props {
   onComplete: () => void;
   size?: number;
+  accessibilityLabel?: string;
 }
 
-export function CompletionButton({ onComplete, size = 36 }: Props) {
+export function CompletionButton({ onComplete, size = 24, accessibilityLabel = 'Complete task' }: Props) {
   const scale = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -34,15 +34,14 @@ export function CompletionButton({ onComplete, size = 36 }: Props) {
   }
 
   return (
-    <TouchableOpacity onPress={handlePress} hitSlop={12} activeOpacity={0.7}>
+    <TouchableOpacity onPress={handlePress} hitSlop={10} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={accessibilityLabel}>
       <Animated.View
         style={[
           styles.circle,
-          { width: size, height: size, borderRadius: size / 2 },
+          { width: size, height: size, borderRadius: 7 },
           animatedStyle,
         ]}
       >
-        <Check size={size * 0.55} color={colors.success} strokeWidth={3} />
       </Animated.View>
     </TouchableOpacity>
   );
@@ -50,9 +49,9 @@ export function CompletionButton({ onComplete, size = 36 }: Props) {
 
 const styles = StyleSheet.create({
   circle: {
-    backgroundColor: colors.success + '22',
-    borderWidth: 2,
-    borderColor: colors.success,
+    backgroundColor: colors.bg,
+    borderWidth: 1.5,
+    borderColor: colors.textDim,
     alignItems: 'center',
     justifyContent: 'center',
   },

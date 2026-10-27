@@ -22,6 +22,7 @@ import {
   CloudOff,
 } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
+import { HalloweenArtwork } from '../../components/theme/HalloweenArtwork';
 import { Screen } from '../../components/ui/Screen';
 import { TodoCard } from '../../components/todo/TodoCard';
 import { FinishedRow } from '../../components/todo/FinishedRow';
@@ -234,7 +235,7 @@ export default function TasksScreen() {
   );
 
   const title = primaryTab === 'mine' ? 'My Tasks' : 'Friends Tasks';
-  const subtitle = getSubtitle(primaryTab, secondaryTab, user?.username ?? null);
+  const todayLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: timezone }).format(new Date());
 
   const onRefresh = () => {
     if (primaryTab === 'mine' && secondaryTab === 'done') {
@@ -257,11 +258,10 @@ export default function TasksScreen() {
   };
 
   return (
-    <Screen>
+    <Screen edges={['top', 'left', 'right']}>
       <View style={styles.heroCard}>
-        <View style={styles.heroGlowLarge} />
-        <View style={styles.heroGlowSmall} />
         <View style={styles.heroTopRow}>
+          <HalloweenArtwork style={styles.heroArtwork} />
           <View style={styles.heroTextBlock}>
             <View style={styles.heroTitleRow}>
               <Text style={styles.heroTitle}>{title}</Text>
@@ -277,10 +277,13 @@ export default function TasksScreen() {
                 </View>
               ) : null}
             </View>
+            <Text style={styles.heroDate}>{todayLabel}</Text>
           </View>
+        </View>
+        <View style={styles.heroActions}>
           {primaryTab === 'mine' ? (
             <TouchableOpacity onPress={() => router.push('/(app)/todo/new')} style={styles.addBtn}>
-              <Plus size={16} color={colors.text} strokeWidth={2.6} />
+              <Plus size={16} color={colors.onAccent} strokeWidth={2.6} />
               <Text style={styles.addBtnText}>New Task</Text>
             </TouchableOpacity>
           ) : null}
@@ -680,6 +683,7 @@ function TabStrip<T extends string>({
                 styles.tabButtonLabel,
                 variant === 'secondary' && styles.secondaryTabButtonLabel,
                 active && styles.tabButtonLabelActive,
+                active && variant === 'secondary' && { color: colors.accent },
               ]}
             >
               {option.label}
@@ -847,30 +851,6 @@ function buildCalendarSections(items: TaskItem[], timezone?: string): CalendarSe
     }));
 }
 
-function getSubtitle(primaryTab: PrimaryTab, secondaryTab: SecondaryTab, username: string | null): string {
-  if (primaryTab === 'mine' && secondaryTab === 'active') {
-    return `Keep the queue visible, ${username ?? 'friend'}. Clear the urgent things first.`;
-  }
-
-  if (primaryTab === 'mine' && secondaryTab === 'calendar') {
-    return 'Every dated task, arranged by the day it wants attention.';
-  }
-
-  if (primaryTab === 'mine') {
-    return 'Finished tasks stay close enough to reopen without digging.';
-  }
-
-  if (secondaryTab === 'active') {
-    return 'A live read on what your friends have out in the open right now.';
-  }
-
-  if (secondaryTab === 'calendar') {
-    return 'See your friends\' public task dates without jumping between profiles.';
-  }
-
-  return 'Completed public tasks from friends, gathered into one quiet archive.';
-}
-
 function getAnchorIso(todo: Todo): string | null {
   const candidates = [todo.planned_at, todo.deadline].filter((value): value is string => !!value);
   if (candidates.length === 0) return null;
@@ -929,70 +909,39 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 12,
     padding: 8,
-    borderRadius: 28,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
     overflow: 'hidden',
     gap: 14,
   },
-  heroGlowLarge: {
-    position: 'absolute',
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: colors.accent + '2A',
-    top: -54,
-    right: -24,
-  },
-  heroGlowSmall: {
-    position: 'absolute',
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: colors.priorityB + '22',
-    bottom: -28,
-    left: -10,
-  },
-  heroKicker: {
-    color: colors.accentLight,
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
-    fontSize: 11,
-    fontWeight: '800',
-  },
   heroTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 16,
+    minHeight: 138,
+    justifyContent: 'center',
   },
-  heroTextBlock: { flex: 1, gap: 6 },
+  heroArtwork: {
+    position: 'absolute', right: -12, top: -15,
+    width: 196, height: 183,
+  },
+  heroTextBlock: { paddingRight: 150, gap: 8 },
   heroTitle: {
     color: colors.text,
-    fontSize: 31,
-    fontWeight: '900',
-    letterSpacing: -0.9,
+    fontSize: 27,
+    fontWeight: '800',
+    letterSpacing: -0.7,
   },
-  heroSubtitle: {
-    color: colors.textMuted,
-    fontSize: 14,
-    lineHeight: 20,
-    maxWidth: 320,
-  },
+  heroDate: { color: colors.textMuted, fontSize: 12, lineHeight: 18 },
+  heroActions: { alignItems: 'flex-end' },
   addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     backgroundColor: colors.accent,
-    borderColor: colors.accentDark,
-    borderWidth: 1.5,
+    borderColor: colors.accent,
+    borderWidth: 1,
     paddingHorizontal: 14,
     paddingVertical: 9,
-    borderRadius: 999,
+    borderRadius: 11,
   },
   addBtnText: {
-    color: colors.text,
+    color: colors.onAccent,
     fontWeight: '800',
     fontSize: 13,
     letterSpacing: 0.3,
@@ -1000,17 +949,22 @@ const styles = StyleSheet.create({
   tabRow: {
     flexDirection: 'row',
     backgroundColor: colors.bg + '80',
-    borderRadius: 18,
-    padding: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 4,
     gap: 6,
   },
   subTabRow: {
-    backgroundColor: colors.surfaceAlt,
-    padding: 4,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    borderBottomWidth: 1,
+    borderRadius: 0,
+    padding: 0,
   },
   tabButton: {
     flex: 1,
-    borderRadius: 14,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1019,14 +973,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   secondaryTabButton: {
-    minHeight: 38,
+    minHeight: 42,
     paddingHorizontal: 10,
+    borderRadius: 0,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
   },
   primaryTabButtonActive: {
-    backgroundColor: colors.text,
+    backgroundColor: colors.surfaceAlt,
   },
   secondaryTabButtonActive: {
-    backgroundColor: colors.accent,
+    borderBottomColor: colors.accent,
   },
   tabButtonLabel: {
     color: colors.textMuted,
@@ -1037,7 +994,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   tabButtonLabelActive: {
-    color: colors.bg,
+    color: colors.text,
   },
   filterCard: {
     backgroundColor: colors.bg + '80',

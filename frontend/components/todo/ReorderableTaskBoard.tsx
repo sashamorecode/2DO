@@ -129,7 +129,6 @@ export function ReorderableTaskBoard({ groups, loading, onRefresh, onComplete, o
           <RefreshControl enabled={!drag} refreshing={loading} onRefresh={() => { if (!current.current) onRefresh(); }} tintColor={colors.accent} />
         }
       >
-        {groups.length > 0 ? <Text style={styles.hint}>Drag a handle to reorder within an importance group.</Text> : null}
         {groups.map((group) => (
           <View key={group.priority} style={[styles.section, drag?.group.priority === group.priority && styles.raised]}>
             <View style={styles.header}>
@@ -244,11 +243,10 @@ function DragHandle(props: {
 const styles = StyleSheet.create({
   scroll: { flex: 1, minHeight: 0 },
   list: { paddingHorizontal: 16, paddingBottom: 36, gap: 12 },
-  hint: { color: colors.textDim, fontSize: 12, marginBottom: 2 },
-  section: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 22, padding: 14 },
+  section: { paddingTop: 4 },
   raised: { zIndex: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  title: { fontSize: 13, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8 },
+  title: { fontSize: 13, fontWeight: '700', letterSpacing: 0.2 },
   count: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
   dragging: { zIndex: 2, opacity: 0.94, elevation: 8, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 8 },
   handle: { width: 32, minHeight: 44, justifyContent: 'center', alignItems: 'center' },

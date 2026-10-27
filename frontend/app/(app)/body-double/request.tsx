@@ -152,7 +152,7 @@ export default function BodyDoubleRequestScreen() {
                   onPress={() => toggleFriend(f.user.id)}
                 >
                   <View style={[styles.checkbox, selected && styles.checkboxSelected]}>
-                    {selected && <Check size={12} color={colors.text} strokeWidth={3} />}
+                    {selected && <Check size={12} color={colors.onAccent} strokeWidth={3} />}
                   </View>
                   <Text style={[styles.friendName, selected && styles.friendNameSelected]}>
                     {f.user.username}

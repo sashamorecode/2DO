@@ -449,7 +449,7 @@ export function TodoForm({
                 onPress={() => updateStep(step.key, { completed: !step.completed })}
               >
                 <View style={[styles.stepCheckbox, step.completed && styles.stepCheckboxCompleted]}>
-                  {step.completed ? <Check size={14} color={colors.text} strokeWidth={2.6} /> : null}
+                  {step.completed ? <Check size={14} color={colors.onAccent} strokeWidth={2.6} /> : null}
                 </View>
               </TouchableOpacity>
               <TextInput

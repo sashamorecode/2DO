@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'expo-router';
 import { colors } from '../../constants/colors';
+import { HalloweenArtwork } from '../../components/theme/HalloweenArtwork';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { KeyboardAwareScrollView } from '../../components/ui/KeyboardAwareScrollView';
@@ -65,8 +66,10 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAwareScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        <Text style={styles.logo}>2Do</Text>
-        <Text style={styles.tagline}>Stay accountable, get things done</Text>
+        <View style={styles.artHeader}>
+          <Text style={styles.logo}>2Do</Text>
+          <HalloweenArtwork style={styles.artwork} />
+        </View>
 
         <Button
           title="Continue with Google"
@@ -122,19 +125,19 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 24,
-    paddingTop: 96,
+    paddingTop: 32,
     paddingBottom: 32,
     flexGrow: 1,
   },
+  artHeader: { minHeight: 190, justifyContent: 'center', marginBottom: 20 },
+  artwork: { position: 'absolute', right: -12, top: 0, width: 196, height: 183 },
   logo: {
     fontSize: 64,
     fontWeight: '900',
     color: colors.accentLight,
-    textAlign: 'center',
     marginBottom: 6,
     letterSpacing: -2,
   },
-  tagline: { color: colors.textMuted, textAlign: 'center', fontSize: 15, marginBottom: 40 },
   divider: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, marginTop: 4 },
   dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
   dividerText: { color: colors.textMuted, marginHorizontal: 12, fontSize: 12, fontWeight: '600', letterSpacing: 1 },

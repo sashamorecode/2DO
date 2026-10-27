@@ -15,7 +15,7 @@ const variants = {
   primary: {
     bg: colors.accent,
     border: colors.accentDark,
-    text: '#FFF5FB',
+    text: colors.onAccent,
   },
   secondary: {
     bg: colors.surfaceAlt,

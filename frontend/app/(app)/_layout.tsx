@@ -26,7 +26,7 @@ export default function AppLayout() {
           paddingBottom: insets.bottom,
           paddingTop: 6,
         },
-        tabBarActiveTintColor: colors.accentLight,
+        tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textDim,
         tabBarLabelStyle: { fontSize: 11, fontWeight: '700', letterSpacing: 0.4 },
         headerStyle: { backgroundColor: colors.bg },
@@ -38,7 +38,8 @@ export default function AppLayout() {
       <Tabs.Screen
         name="index"
         options={{
-        title: 'Tasks',
+          title: 'Tasks',
+          headerShown: false,
           tabBarIcon: ({ color, focused }) => (
             <AnimatedTabIcon Icon={ListChecks} color={color} focused={focused} />
           ),

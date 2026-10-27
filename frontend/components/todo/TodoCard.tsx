@@ -130,7 +130,7 @@ export function TodoCard({
           accessible={dragHandle ? false : undefined}
         >
           <View style={styles.left}>
-            {!readOnly && <CompletionButton onComplete={handleComplete} />}
+            {!readOnly && <CompletionButton onComplete={handleComplete} accessibilityLabel={`Complete ${todo.title}`} />}
             <View style={styles.content}>
               <View style={styles.titleRow}>
                 <Text style={styles.title} numberOfLines={2}>{todo.title}</Text>

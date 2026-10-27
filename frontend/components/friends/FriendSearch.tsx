@@ -47,7 +47,7 @@ export function FriendSearch({ onSendRequest }: Props) {
             onPress={() => handleSend(u.id)}
             disabled={sent.has(u.id)}
           >
-            <Text style={styles.addText}>{sent.has(u.id) ? 'Sent' : '+ Add'}</Text>
+            <Text style={[styles.addText, sent.has(u.id) && { color: colors.textMuted }]}>{sent.has(u.id) ? 'Sent' : '+ Add'}</Text>
           </TouchableOpacity>
         </View>
       ))}
@@ -71,5 +71,5 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   sentBtn: { backgroundColor: colors.surfaceAlt },
-  addText: { color: '#FFF5FB', fontWeight: '700', fontSize: 13 },
+  addText: { color: colors.onAccent, fontWeight: '700', fontSize: 13 },
 });

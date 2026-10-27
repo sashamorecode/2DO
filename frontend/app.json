@@ -5,13 +5,13 @@
     "version": "1.2.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "scheme": "twodo",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#1F0A1D"
+      "backgroundColor": "#17121E"
     },
     "ios": {
       "supportsTablet": true,
@@ -20,7 +20,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#1F0A1D"
+        "backgroundColor": "#17121E"
       },
       "package": "com.twodo.adhd",
       "googleServicesFile": "./google-services.json",
@@ -38,7 +38,7 @@
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
-          "color": "#772770"
+          "color": "#FF9B57"
         }
       ],
       [

@@ -31,7 +31,7 @@ export function celebrate(x: number, y: number, accent: string) {
 }
 
 const SHARD_COUNT = 14;
-const CONFETTI_COLORS = ['#C0A2BE', '#9A6395', '#E07A91', '#E5B868', '#88B0A8', '#FFF5FB', '#772770'];
+const CONFETTI_COLORS = [colors.accent, colors.accentMuted, colors.priorityB, colors.priorityC, colors.text];
 
 interface PieceData {
   id: number;

@@ -329,5 +329,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.accentDark,
   },
-  retryText: { color: colors.text, fontWeight: '800', fontSize: 14 },
+  retryText: { color: colors.onAccent, fontWeight: '800', fontSize: 14 },
 });

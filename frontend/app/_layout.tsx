@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { StatusBar } from 'expo-status-bar';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -88,6 +89,7 @@ export default function RootLayout() {
   return (
     <KeyboardProvider>
       <QueryClientProvider client={queryClient}>
+        <StatusBar style="light" />
         <AppViewport>
           <AuthGuard />
           <CelebrationHost />
