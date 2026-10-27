@@ -38,9 +38,11 @@ import { useOfflineStore } from '../../store/offlineStore';
 import { useOfflineTodoOps } from '../../services/todos.api.offline';
 import { sortTodoGroup } from '../../services/todoOrder';
 import { ReorderableTaskBoard } from '../../components/todo/ReorderableTaskBoard';
+import { isTodoOnDay } from '../../services/todoDates';
+import { useTodayKey } from '../../hooks/useTodayKey';
 
 type PrimaryTab = 'mine' | 'friends';
-type SecondaryTab = 'active' | 'calendar' | 'done';
+type SecondaryTab = 'active' | 'today' | 'calendar' | 'done';
 type UrgencyFilter = 'all' | 'A' | 'B' | 'C';
 
 interface TaskItem {
@@ -66,6 +68,7 @@ export default function TasksScreen() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const timezone = user?.timezone;
+  const todayKey = useTodayKey(timezone);
 
   const isOnline = useOfflineStore((s) => s.isOnline);
   const pendingChanges = useOfflineStore((s) => s.pendingChanges);
@@ -88,7 +91,7 @@ export default function TasksScreen() {
   const myPendingQuery = useQuery({
     queryKey: ['todos', 'pending'],
     queryFn: () => todosApi.list({ status: 'pending' }),
-    enabled: primaryTab === 'mine' && (secondaryTab === 'active' || secondaryTab === 'calendar'),
+    enabled: primaryTab === 'mine' && secondaryTab !== 'done',
   });
 
   const myDoneQuery = useQuery({
@@ -100,7 +103,7 @@ export default function TasksScreen() {
   const friendsPendingQuery = useQuery({
     queryKey: ['feed', 'pending'],
     queryFn: () => feedApi.get({ status: 'pending' }),
-    enabled: primaryTab === 'friends' && (secondaryTab === 'active' || secondaryTab === 'calendar') && isOnline,
+    enabled: primaryTab === 'friends' && secondaryTab !== 'done' && isOnline,
     refetchInterval: 30_000,
   });
 
@@ -162,19 +165,30 @@ export default function TasksScreen() {
     [myDone, urgencyFilter, selectedTagIds]
   );
 
+  const myVisiblePending = useMemo(
+    () => secondaryTab === 'today'
+      ? myPendingFiltered.filter((todo) => isTodoOnDay(todo, todayKey, timezone))
+      : myPendingFiltered,
+    [myPendingFiltered, secondaryTab, todayKey, timezone]
+  );
+
   const importanceGroups = useMemo(
     () =>
       PRIORITY_ORDER.map((priority) => ({
         priority,
         meta: PRIORITIES[priority],
-        data: sortTodoGroup(myPendingFiltered.filter((todo) => todo.priority === priority)),
+        data: sortTodoGroup(myVisiblePending.filter((todo) => todo.priority === priority)),
       })).filter((group) => group.data.length > 0),
-    [myPendingFiltered]
+    [myVisiblePending]
   );
 
   const friendsActiveGroups = useMemo(
-    () => friendsPending.filter((entry) => entry.todos.length > 0),
-    [friendsPending]
+    () => friendsPending
+      .map((entry) => secondaryTab === 'today'
+        ? { ...entry, todos: entry.todos.filter((todo) => isTodoOnDay(todo, todayKey, timezone)) }
+        : entry)
+      .filter((entry) => entry.todos.length > 0),
+    [friendsPending, secondaryTab, todayKey, timezone]
   );
 
   const myCalendarSections = useMemo(
@@ -304,6 +318,7 @@ export default function TasksScreen() {
           onChange={(value) => setSecondaryTab(value as SecondaryTab)}
           options={[
             { value: 'active', label: 'Active' },
+            { value: 'today', label: 'Today' },
             { value: 'calendar', label: 'Calendar' },
             { value: 'done', label: 'Done' },
           ]}
@@ -342,7 +357,7 @@ export default function TasksScreen() {
         ) : null}
       </View>
 
-      {primaryTab === 'mine' && secondaryTab === 'active' ? (
+      {primaryTab === 'mine' && (secondaryTab === 'active' || secondaryTab === 'today') ? (
         <ReorderableTaskBoard
           groups={importanceGroups}
           loading={myPendingQuery.isLoading}
@@ -353,14 +368,16 @@ export default function TasksScreen() {
           empty={
             <EmptyState
               icon={<PartyPopper size={56} color={colors.accentLight} strokeWidth={1.6} />}
-              title="All clear"
-              description="No active tasks right now. Add one and it will land here."
+              title={secondaryTab === 'today' ? 'No tasks for today' : 'All clear'}
+              description={secondaryTab === 'today'
+                ? 'Tasks with a do date or due date today appear here.'
+                : 'No active tasks right now. Add one and it will land here.'}
             />
           }
         />
       ) : null}
 
-      {primaryTab === 'friends' && secondaryTab === 'active' ? (
+      {primaryTab === 'friends' && (secondaryTab === 'active' || secondaryTab === 'today') ? (
         <>
           {!isOnline ? (
             <View style={styles.offlineBanner}>
@@ -369,6 +386,7 @@ export default function TasksScreen() {
             </View>
           ) : null}
           <FriendsBoard
+            todayOnly={secondaryTab === 'today'}
             feed={friendsActiveGroups}
             loading={friendsPendingQuery.isLoading}
             onRefresh={onRefresh}
@@ -433,6 +451,7 @@ export default function TasksScreen() {
 }
 
 function FriendsBoard({
+  todayOnly = false,
   feed,
   loading,
   onRefresh,
@@ -440,6 +459,7 @@ function FriendsBoard({
   onPoke,
   pokingTodoId,
 }: {
+  todayOnly?: boolean;
   feed: FriendFeedItem[];
   loading: boolean;
   onRefresh: () => void;
@@ -478,8 +498,10 @@ function FriendsBoard({
         !loading ? (
           <EmptyState
             icon={<UsersIcon size={56} color={colors.accentLight} strokeWidth={1.6} />}
-            title="Nothing shared yet"
-            description="When your friends have public active tasks, they will show up here."
+            title={todayOnly ? 'No tasks for today' : 'Nothing shared yet'}
+            description={todayOnly
+              ? 'No friends have tasks scheduled or due today.'
+              : 'When your friends have public active tasks, they will show up here.'}
           />
         ) : null
       }
@@ -672,6 +694,8 @@ function TabStrip<T extends string>({
           <TouchableOpacity
             key={option.value}
             onPress={() => onChange(option.value)}
+            accessibilityRole="tab"
+            aria-selected={active}
             style={[
               styles.tabButton,
               variant === 'primary' ? styles.primaryTabButton : styles.secondaryTabButton,
@@ -974,7 +998,7 @@ const styles = StyleSheet.create({
   },
   secondaryTabButton: {
     minHeight: 42,
-    paddingHorizontal: 10,
+    paddingHorizontal: 6,
     borderRadius: 0,
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
@@ -991,7 +1015,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   secondaryTabButtonLabel: {
-    fontSize: 13,
+    fontSize: 12,
   },
   tabButtonLabelActive: {
     color: colors.text,
