@@ -192,13 +192,13 @@ export default function TasksScreen() {
   );
 
   const myCalendarSections = useMemo(
-    () => buildCalendarSections(myPendingFiltered.map((todo) => ({ todo })), timezone),
-    [myPendingFiltered, timezone]
+    () => buildCalendarSections(myPendingFiltered.map((todo) => ({ todo })), todayKey, timezone),
+    [myPendingFiltered, todayKey, timezone]
   );
 
   const friendsCalendarSections = useMemo(
-    () => buildCalendarSections(flattenFeed(friendsPending), timezone),
-    [friendsPending, timezone]
+    () => buildCalendarSections(flattenFeed(friendsPending), todayKey, timezone),
+    [friendsPending, todayKey, timezone]
   );
 
   // Build session calendar sections for body doubling
@@ -209,17 +209,10 @@ export default function TasksScreen() {
     const groups = new Map<string, { data: BodyDoubleSession[]; sortTime: number; title: string; subtitle: string }>();
 
     for (const session of sessions) {
-      const anchor = session.scheduled_at;
-      const key = anchor ? getDayKey(anchor, timezone) : 'undated';
-      const sortTime = anchor ? new Date(anchor).getTime() : Number.MAX_SAFE_INTEGER;
+      const { key, ...group } = getCalendarGroup(session.scheduled_at, todayKey, timezone, '');
 
       if (!groups.has(key)) {
-        groups.set(key, {
-          data: [],
-          sortTime,
-          title: anchor ? getDayTitle(anchor, timezone) : 'No date assigned',
-          subtitle: anchor ? getDaySubtitle(anchor, timezone) : '',
-        });
+        groups.set(key, { data: [], ...group });
       }
 
       groups.get(key)?.data.push(session);
@@ -233,7 +226,7 @@ export default function TasksScreen() {
         subtitle: value.subtitle,
         data: value.data,
       }));
-  }, [bodyDoubleSessionsQuery.data, timezone]);
+  }, [bodyDoubleSessionsQuery.data, todayKey, timezone]);
 
   const friendDoneItems = useMemo(
     () =>
@@ -552,7 +545,8 @@ function CalendarBoard({
         } else {
           const entry = { key: ss.key, title: ss.title, subtitle: ss.subtitle, tasks: [], sessions: ss.data };
           byKey.set(dateKey, entry);
-          result.push(entry);
+          if (dateKey === 'overdue') result.unshift(entry);
+          else result.push(entry);
         }
       }
     }
@@ -845,21 +839,19 @@ function sortByAnchorDate(todos: Todo[]): Todo[] {
   return [...todos].sort((left, right) => getAnchorTime(left) - getAnchorTime(right));
 }
 
-function buildCalendarSections(items: TaskItem[], timezone?: string): CalendarSection[] {
+function buildCalendarSections(items: TaskItem[], todayKey: string, timezone?: string): CalendarSection[] {
   const groups = new Map<string, { data: TaskItem[]; sortTime: number; title: string; subtitle: string }>();
 
   for (const item of items) {
-    const anchor = getAnchorIso(item.todo);
-    const key = anchor ? getDayKey(anchor, timezone) : 'undated';
-    const sortTime = anchor ? new Date(anchor).getTime() : Number.MAX_SAFE_INTEGER;
+    const { key, ...group } = getCalendarGroup(
+      getAnchorIso(item.todo),
+      todayKey,
+      timezone,
+      'Tasks without a do date or deadline'
+    );
 
     if (!groups.has(key)) {
-      groups.set(key, {
-        data: [],
-        sortTime,
-        title: anchor ? getDayTitle(anchor, timezone) : 'No date assigned',
-        subtitle: anchor ? getDaySubtitle(anchor, timezone) : 'Tasks without a do date or deadline',
-      });
+      groups.set(key, { data: [], ...group });
     }
 
     groups.get(key)?.data.push(item);
@@ -873,6 +865,26 @@ function buildCalendarSections(items: TaskItem[], timezone?: string): CalendarSe
       subtitle: value.subtitle,
       data: value.data.sort((left, right) => getAnchorTime(left.todo) - getAnchorTime(right.todo)),
     }));
+}
+
+// Past days collapse into one leading "Overdue" section; the key is shared so
+// task and session sections merge in CalendarBoard.
+function getCalendarGroup(anchor: string | null | undefined, todayKey: string, timezone: string | undefined, undatedSubtitle: string) {
+  if (!anchor) {
+    return { key: 'undated', sortTime: Number.MAX_SAFE_INTEGER, title: 'No date assigned', subtitle: undatedSubtitle };
+  }
+
+  const key = getDayKey(anchor, timezone);
+  if (key < todayKey) {
+    return { key: 'overdue', sortTime: Number.MIN_SAFE_INTEGER, title: 'Overdue', subtitle: 'From before today' };
+  }
+
+  return {
+    key,
+    sortTime: new Date(anchor).getTime(),
+    title: getDayTitle(anchor, timezone),
+    subtitle: getDaySubtitle(anchor, timezone),
+  };
 }
 
 function getAnchorIso(todo: Todo): string | null {
