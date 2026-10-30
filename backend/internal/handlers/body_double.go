@@ -234,7 +234,11 @@ func (h *BodyDoubleHandler) RespondToInvitation(c *gin.Context) {
 			if invitation.Session.Requester != nil && invitation.Session.Requester.Username != nil {
 				username = *invitation.Session.Requester.Username
 			}
-			title := "Body Doubling Session with " + username
+			// Sessions can be scheduled without a task, so the task name is optional
+			title := "Body Doubling with " + username
+			if invitation.Session.Todo != nil {
+				title = "Body Doubling: " + invitation.Session.Todo.Title + " with " + username
+			}
 			todo := models.Todo{
 				UserID:    userID,
 				Title:     title,
