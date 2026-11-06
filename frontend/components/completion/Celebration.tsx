@@ -1,197 +1,186 @@
-import React, {
-  createRef,
-  forwardRef,
-  useEffect,
-  useImperativeHandle,
-  useRef,
-  useState,
-} from 'react';
-import { StyleSheet, View } from 'react-native';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withTiming,
-} from 'react-native-reanimated';
-import ConfettiCannon from 'react-native-confetti-cannon';
-import { colors } from '../../constants/colors';
+import React, { createRef, forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { AccessibilityInfo, AppState, StyleSheet, View, useWindowDimensions } from 'react-native';
+import Animated, { cancelAnimation, Easing, Extrapolation, interpolate, ReduceMotion, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { SvgXml } from 'react-native-svg';
+import { SantaSleigh } from './SantaSleigh';
 
-// Singleton imperative handle so any component can trigger a celebration
-// without having to thread refs through the tree. The host overlay is mounted
-// once at the app root and stays alive across TodoCard unmounts.
-export interface CelebrationOverlayRef {
-  fire: (x: number, y: number, accent: string) => void;
+interface WrappedTask {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  content: React.ReactNode;
 }
-
+interface Flight extends WrappedTask { id: number }
+interface CelebrationOverlayRef { fire: (task: WrappedTask) => void }
 const handleRef = createRef<CelebrationOverlayRef>();
+export function celebrate(task: WrappedTask) { handleRef.current?.fire(task); }
 
-export function celebrate(x: number, y: number, accent: string) {
-  handleRef.current?.fire(x, y, accent);
-}
+const DURATION = 4000;
+const bow = `<svg viewBox="0 0 100 70" xmlns="http://www.w3.org/2000/svg" fill="none"><path d="M50 43C-5 45 5-9 29 12L50 43ZM50 43C105 45 95-9 71 12L50 43Z" fill="#E8C478" stroke="#F4DCA3" stroke-width="4"/><path d="M48 41 27 65l-1-14-13 2 29-17M52 41l21 24 1-14 13 2-29-17" fill="#E8C478"/><ellipse cx="50" cy="40" rx="9" ry="7" fill="#F4DCA3"/></svg>`;
 
-const SHARD_COUNT = 14;
-const CONFETTI_COLORS = [colors.accent, colors.accentMuted, colors.priorityB, colors.priorityC, colors.text];
-
-interface PieceData {
-  id: number;
-  size: number;
-  color: string;
-  dx: number;
-  dy: number;
-  rotation: number;
-  delay: number;
-  borderRadius: number;
-}
-
-interface Burst {
-  id: number;
-  centerX: number;
-  centerY: number;
-  pieces: PieceData[];
-  confettiKey: number;
-}
-
-function generatePieces(accent: string): PieceData[] {
-  const palette = [accent, accent, colors.accentLight, colors.accentMuted, colors.text];
-  return Array.from({ length: SHARD_COUNT }, (_, i) => {
-    // Spread shards in a full circle but with jitter so it doesn't look mechanical.
-    const angle = (Math.PI * 2 * i) / SHARD_COUNT + (Math.random() - 0.5) * 0.5;
-    const distance = 130 + Math.random() * 120;
-    return {
-      id: i,
-      size: 14 + Math.random() * 18,
-      color: palette[Math.floor(Math.random() * palette.length)],
-      dx: Math.cos(angle) * distance,
-      dy: Math.sin(angle) * distance,
-      rotation: (Math.random() - 0.5) * 900,
-      delay: Math.random() * 70,
-      borderRadius: Math.random() < 0.5 ? 3 : 999, // mix rounded squares + dots
-    };
-  });
-}
-
-export const CelebrationOverlay = forwardRef<CelebrationOverlayRef>((_, ref) => {
-  const [bursts, setBursts] = useState<Burst[]>([]);
-  const idRef = useRef(0);
-
-  useImperativeHandle(ref, () => ({
-    fire(x, y, accent) {
-      const id = ++idRef.current;
-      const burst: Burst = {
-        id,
-        centerX: x,
-        centerY: y,
-        pieces: generatePieces(accent),
-        confettiKey: id,
-      };
-      setBursts((prev) => [...prev, burst]);
-      // Each burst self-cleans after ~6000ms, leaving room for fall + fade.
-      setTimeout(() => {
-        setBursts((prev) => prev.filter((b) => b.id !== id));
-      }, 6000 + 1200 + 400 /* max delay + anim duration + fade buffer */);
-    },
-  }));
-
-  if (bursts.length === 0) return null;
-
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {bursts.map((b) => (
-        <View key={b.id} style={StyleSheet.absoluteFill} pointerEvents="none">
-          {b.pieces.map((p) => (
-            <Shard key={p.id} piece={p} centerX={b.centerX} centerY={b.centerY} />
-          ))}
-          <ConfettiCannon
-            key={`confetti-${b.confettiKey}`}
-            count={120}
-            origin={{ x: b.centerX, y: b.centerY }}
-            explosionSpeed={650}
-            fallSpeed={3000}
-            autoStart
-            fadeOut={true}
-            colors={CONFETTI_COLORS}
-          />
-        </View>
-      ))}
-    </View>
-  );
-});
-
-CelebrationOverlay.displayName = 'CelebrationOverlay';
-
-function Shard({
-  piece,
-  centerX,
-  centerY,
-}: {
-  piece: PieceData;
-  centerX: number;
-  centerY: number;
-}) {
-  const tx = useSharedValue(0);
-  const ty = useSharedValue(0);
-  const rot = useSharedValue(0);
-  const op = useSharedValue(0);
-  const scale = useSharedValue(0.4);
+// A root-level snapshot survives the local-first mutation removing the real row.
+// Completion never waits for animation callbacks, app foregrounding, or a network request.
+const CelebrationOverlay = forwardRef<CelebrationOverlayRef>((_, ref) => {
+  const [flights, setFlights] = useState<Flight[]>([]);
+  const root = useRef<View>(null);
+  const origin = useRef({ x: 0, y: 0 });
+  const nextId = useRef(0);
+  const enabled = useRef(false);
+  const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
+  const { width, height } = useWindowDimensions();
 
   useEffect(() => {
-    // Pop in fast.
-    op.value = withTiming(1, { duration: 50 });
-    scale.value = withTiming(1, { duration: 30, easing: Easing.out(Easing.back(1.8)) });
-    // Outward + downward arc (gravity bias on Y).
-    tx.value = withDelay(
-      piece.delay,
-      withTiming(piece.dx, { duration: 1200, easing: Easing.out(Easing.cubic) })
-    );
-    ty.value = withDelay(
-      piece.delay,
-      withTiming(piece.dy + 260, { duration: 1200, easing: Easing.in(Easing.cubic) })
-    );
-    rot.value = withDelay(
-      piece.delay,
-      withTiming(piece.rotation, { duration: 1200, easing: Easing.out(Easing.quad) })
-    );
-
-    // Late fade.
-    op.value = withDelay(
-      6000 + piece.delay,
-      withTiming(0, { duration: 380, easing: Easing.in(Easing.quad) })
-    );
+    let mounted = true;
+    let preferenceChanged = false;
+    let reduced = true;
+    const refresh = () => {
+      enabled.current = !reduced && AppState.currentState === 'active';
+      if (!enabled.current) setFlights([]);
+    };
+    const motion = AccessibilityInfo.addEventListener('reduceMotionChanged', value => {
+      preferenceChanged = true;
+      reduced = value;
+      refresh();
+    });
+    AccessibilityInfo.isReduceMotionEnabled().then(value => {
+      if (mounted && !preferenceChanged) { reduced = value; refresh(); }
+    }).catch(() => {});
+    const state = AppState.addEventListener('change', refresh);
+    return () => {
+      mounted = false;
+      enabled.current = false;
+      motion.remove();
+      state.remove();
+      timers.current.forEach(clearTimeout);
+      timers.current.clear();
+    };
   }, []);
 
-  const animStyle = useAnimatedStyle(() => ({
-    opacity: op.value,
+  useImperativeHandle(ref, () => ({ fire(task) {
+    if (!enabled.current) return;
+    const id = ++nextId.current;
+    setFlights(previous => [...previous.slice(-2), {
+      ...task, id, x: task.x - origin.current.x, y: task.y - origin.current.y,
+    }]);
+    const timer = setTimeout(() => {
+      timers.current.delete(timer);
+      setFlights(previous => previous.filter(flight => flight.id !== id));
+    }, DURATION + 150);
+    timers.current.add(timer);
+  } }), []);
+
+  return <View ref={root} collapsable={false} pointerEvents="none" accessible={false}
+    accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+    style={styles.overlay} onLayout={() => root.current?.measureInWindow((x, y) => { origin.current = { x, y }; })}>
+    {flights.map(flight => <GiftFlight key={flight.id} task={flight} viewportWidth={width} viewportHeight={height} />)}
+  </View>;
+});
+CelebrationOverlay.displayName = 'CelebrationOverlay';
+
+function GiftFlight({ task, viewportWidth, viewportHeight }: { task: Flight; viewportWidth: number; viewportHeight: number }) {
+  const time = useSharedValue(0);
+  const { x, y, width, height } = task;
+  const sx = Math.max(4, Math.min(viewportWidth - 234, x + width / 2 - 115));
+  const sy = Math.max(20, Math.min(viewportHeight - 170, y - 38));
+  const giftX = x + width / 2 - 52;
+  const exitX = viewportWidth - sx + 250;
+  useEffect(() => {
+    time.value = withTiming(DURATION, { duration: DURATION, easing: Easing.linear, reduceMotion: ReduceMotion.Never });
+    return () => cancelAnimation(time);
+  }, [time]);
+  const value = (points: number[], values: number[]) => {
+    'worklet';
+    return interpolate(time.value, points, values, Extrapolation.CLAMP);
+  };
+  // The gift and sleigh share the exact departure transform once loaded.
+  const departure = () => {
+    'worklet';
+    return [
+      { translateX: value([2950, 3150, 4000], [0, -14, exitX]) },
+      { translateY: value([2950, 3150, 4000], [0, 8, -300]) },
+      { rotate: `${value([2950, 3150, 4000], [0, -7, -18])}deg` },
+      { scale: value([3150, 4000], [1, 0.6]) },
+    ];
+  };
+  const vehicleStyle = useAnimatedStyle(() => ({
+    opacity: value([1650, 1680, 3850, 4000], [0, 1, 1, 0]),
     transform: [
-      { translateX: tx.value },
-      { translateY: ty.value },
-      { rotateZ: `${rot.value}deg` },
-      { scale: scale.value },
+      { translateX: value([1650, 2250, 2950, 3150, 4000], [-sx - 260, 0, 0, -14, exitX]) },
+      { translateY: value([1650, 2250, 2750, 2850, 2950, 3150, 4000], [45, 0, 0, 7, 0, 8, -300]) },
+      { rotate: `${value([1650, 2250, 2950, 3150, 4000], [-8, 0, 0, -7, -18])}deg` },
+      { scale: value([3150, 4000], [1, 0.6]) },
     ],
   }));
+  const parcelStage = useAnimatedStyle(() => ({
+    opacity: value([3850, 4000], [1, 0]),
+    transform: departure(),
+  }));
+  const parcel = useAnimatedStyle(() => ({
+    left: value([0, 900, 1250, 2250, 2500, 2750], [x - sx, x - sx, giftX - sx, giftX - sx, 30, 40]),
+    top: value([0, 2250, 2500, 2750, 2850, 2950], [y - sy, y - sy, -25, 54, 61, 54]),
+    width: value([900, 1250, 2250, 2750], [width, 104, 104, 56]),
+    height: value([900, 1250, 2250, 2750], [height, 88, 88, 48]),
+    transform: [{ rotate: `${value([2250, 2500, 2750], [0, -14, -5])}deg` }],
+  }));
+  const snapshot = useAnimatedStyle(() => ({ opacity: value([650, 900], [1, 0]) }));
+  const left = useAnimatedStyle(() => ({ transform: [{ translateX: value([120, 420], [-width, 0]) }] }));
+  const right = useAnimatedStyle(() => ({ transform: [{ translateX: value([400, 690], [width, 0]) }] }));
+  const bottom = useAnimatedStyle(() => ({ transform: [{ translateY: value([650, 900], [height, 0]) }] }));
+  const vertical = useAnimatedStyle(() => ({ transform: [{ scaleY: value([1250, 1450], [0, 1]) }] }));
+  const horizontal = useAnimatedStyle(() => ({ transform: [{ scaleX: value([1300, 1500], [0, 1]) }] }));
+  const bowStyle = useAnimatedStyle(() => ({ transform: [{ scale: value([1450, 1620, 1700], [0, 1.15, 1]) }] }));
 
-  return (
-    <Animated.View
-      style={[
-        styles.shard,
-        {
-          left: centerX - piece.size / 2,
-          top: centerY - piece.size / 2,
-          width: piece.size,
-          height: piece.size,
-          backgroundColor: piece.color,
-          borderRadius: piece.borderRadius,
-        },
-        animStyle,
-      ]}
-    />
-  );
+  return <>
+    <Animated.View style={[styles.stage, { left: sx, top: sy }, parcelStage]}>
+      <Animated.View style={[styles.parcel, parcel]}>
+        <View style={styles.shell}>
+          <Animated.View style={[{ width: task.width, height: task.height }, snapshot]}>{task.content}</Animated.View>
+          <Animated.View style={[styles.paper, styles.paperLeft, left]}><PaperPattern /></Animated.View>
+          <Animated.View style={[styles.paper, styles.paperRight, right]}><PaperPattern /></Animated.View>
+          <Animated.View style={[styles.paper, styles.paperBottom, bottom]}><PaperPattern /></Animated.View>
+          <Animated.View style={[styles.horizontal, horizontal]} />
+          <Animated.View style={[styles.vertical, vertical]} />
+        </View>
+        <Animated.View style={[styles.bow, bowStyle]}><SvgXml xml={bow} width={64} height={45} /></Animated.View>
+      </Animated.View>
+    </Animated.View>
+    <Animated.View style={[styles.stage, { left: sx, top: sy }, vehicleStyle]}><SantaSleigh /></Animated.View>
+    {Array.from({ length: 12 }, (_, index) => <Sparkle key={index} time={time} index={index} x={sx} y={sy} />)}
+  </>;
+}
+
+function PaperPattern() {
+  return <View style={StyleSheet.absoluteFill}>
+    {Array.from({ length: 24 }, (_, i) => <View key={i} style={{ position: 'absolute', left: `${(i % 6) * 18 + 5}%`, top: `${Math.floor(i / 6) * 28 + 5}%`, width: 3, height: 3, borderRadius: 2, backgroundColor: '#F4DCA380' }} />)}
+  </View>;
+}
+
+function Sparkle({ time, index, x, y }: { time: { value: number }; index: number; x: number; y: number }) {
+  const start = 3000 + index * 35;
+  const style = useAnimatedStyle(() => ({
+    opacity: interpolate(time.value, [start, start + 100, start + 600], [0, 1, 0], Extrapolation.CLAMP),
+    transform: [
+      { translateY: interpolate(time.value, [start, start + 600], [0, 30], Extrapolation.CLAMP) },
+      { scale: interpolate(time.value, [start, start + 100, start + 600], [0.2, 1, 0], Extrapolation.CLAMP) },
+    ],
+  }));
+  return <Animated.Text style={[styles.spark, { left: x + 25 + index * 12, top: y + 115 - index * 6 }, style]}>✦</Animated.Text>;
 }
 
 const styles = StyleSheet.create({
-  shard: { position: 'absolute' },
+  overlay: { ...StyleSheet.absoluteFillObject, zIndex: 20, overflow: 'hidden' },
+  stage: { position: 'absolute', width: 230, height: 150 },
+  parcel: { position: 'absolute' },
+  shell: { ...StyleSheet.absoluteFillObject, borderRadius: 14, overflow: 'hidden' },
+  paper: { position: 'absolute', top: 0, bottom: 0, borderWidth: 1, borderColor: '#ED879560' },
+  paperLeft: { left: 0, right: '48%', backgroundColor: '#B74356' },
+  paperRight: { left: '48%', right: 0, backgroundColor: '#C65362' },
+  paperBottom: { top: '52%', left: 0, right: 0, backgroundColor: '#A93649', borderTopLeftRadius: 30, borderTopRightRadius: 30 },
+  horizontal: { position: 'absolute', top: '42%', height: '16%', width: '100%', backgroundColor: '#E8C478', borderTopWidth: 2, borderColor: '#F4DCA3' },
+  vertical: { position: 'absolute', left: '42.5%', width: '15%', height: '100%', backgroundColor: '#E8C478', borderLeftWidth: 2, borderColor: '#F4DCA3' },
+  bow: { position: 'absolute', width: 64, height: 45, left: '50%', marginLeft: -32, top: -20 },
+  spark: { position: 'absolute', color: '#F4DCA3', fontSize: 18 },
 });
 
-export function CelebrationHost() {
-  return <CelebrationOverlay ref={handleRef} />;
-}
+export function CelebrationHost() { return <CelebrationOverlay ref={handleRef} />; }
