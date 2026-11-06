@@ -1,22 +1,22 @@
-// Halloween palette shared across task, social, profile, and auth screens.
+// Christmas palette shared across task, social, profile, and auth screens.
 export const palette = {
-  primaryDarker: '#8E4024',
-  primaryDark: '#B85B2D',
-  primary: '#FF9B57',
-  primaryMuted: '#CF956B',
-  primaryLight: '#FFBB83',
+  primaryDarker: '#73501F',
+  primaryDark: '#B68B43',
+  primary: '#E8C478',
+  primaryMuted: '#C5AB77',
+  primaryLight: '#F4DCA3',
 } as const;
 
 export const colors = {
-  bg: '#17121E',
-  surface: '#231C2D',
-  surfaceAlt: '#30263B',
-  border: '#3E314B',
+  bg: '#0D201C',
+  surface: '#17312B',
+  surfaceAlt: '#234239',
+  border: '#36584C',
 
-  text: '#F8F0E8',
-  textMuted: '#B9AABE',
-  textDim: '#A38FAE',
-  onAccent: '#25150D',
+  text: '#F6F5ED',
+  textMuted: '#B4C9BF',
+  textDim: '#96B3A5',
+  onAccent: '#241C0C',
 
   accent: palette.primary,
   accentDark: palette.primaryDark,
@@ -24,11 +24,11 @@ export const colors = {
   accentMuted: palette.primaryMuted,
   accentLight: palette.primaryLight,
 
-  priorityA: '#FF9B57',
-  priorityB: '#C1A0EB',
-  priorityC: '#A8C6A0',
+  priorityA: '#FF9DA5',
+  priorityB: '#B4D9EA',
+  priorityC: '#A4D4B4',
 
-  success: '#A8C6A0',
-  warning: '#FFB454',
-  error: '#FF6B76',
+  success: '#A4D4B4',
+  warning: '#F0C777',
+  error: '#FF8791',
 } as const;

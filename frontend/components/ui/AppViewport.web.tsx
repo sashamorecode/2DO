@@ -1,7 +1,7 @@
 import { PropsWithChildren, useLayoutEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { colors } from '../../constants/colors';
-import { ViewportCobwebs } from '../theme/HalloweenArtwork';
+import { Snowfall } from '../theme/Snowfall';
 
 export function AppViewport({ children }: PropsWithChildren) {
   const [viewport, setViewport] = useState<{ height: number; top: number }>();
@@ -33,7 +33,7 @@ export function AppViewport({ children }: PropsWithChildren) {
         flexBasis: 'auto',
       }]}>
         {children}
-        <ViewportCobwebs />
+        <Snowfall />
       </View>
     </View>
   );

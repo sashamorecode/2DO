@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'expo-router';
 import { colors } from '../../constants/colors';
-import { HalloweenArtwork } from '../../components/theme/HalloweenArtwork';
+import { ChristmasArtwork } from '../../components/theme/ChristmasArtwork';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { KeyboardAwareScrollView } from '../../components/ui/KeyboardAwareScrollView';
@@ -68,7 +68,7 @@ export default function LoginScreen() {
     <KeyboardAwareScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.artHeader}>
           <Text style={styles.logo}>2Do</Text>
-          <HalloweenArtwork style={styles.artwork} />
+          <ChristmasArtwork style={styles.artwork} />
         </View>
 
         <Button

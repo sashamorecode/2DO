@@ -22,7 +22,7 @@ import {
   CloudOff,
 } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
-import { HalloweenArtwork } from '../../components/theme/HalloweenArtwork';
+import { ChristmasArtwork } from '../../components/theme/ChristmasArtwork';
 import { Screen } from '../../components/ui/Screen';
 import { TodoCard } from '../../components/todo/TodoCard';
 import { FinishedRow } from '../../components/todo/FinishedRow';
@@ -268,7 +268,7 @@ export default function TasksScreen() {
     <Screen edges={['top', 'left', 'right']}>
       <View style={styles.heroCard}>
         <View style={styles.heroTopRow}>
-          <HalloweenArtwork style={styles.heroArtwork} />
+          <ChristmasArtwork style={styles.heroArtwork} />
           <View style={styles.heroTextBlock}>
             <View style={styles.heroTitleRow}>
               <Text style={styles.heroTitle}>{title}</Text>
