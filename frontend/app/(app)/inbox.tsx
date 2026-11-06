@@ -1,5 +1,6 @@
+import { AppDialog } from '../../services/appDialog';
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, Alert, ScrollView, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { WifiOff } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
@@ -7,14 +8,16 @@ import { Screen } from '../../components/ui/Screen';
 import { FriendRequestCard } from '../../components/friends/FriendRequestCard';
 import { BodyDoubleInvitationCard } from '../../components/bodyDouble/BodyDoubleInvitationCard';
 import { friendsApi, FriendRequest } from '../../services/friends.api';
-import { bodyDoubleApi, BodyDoubleSession } from '../../services/bodyDouble.api';
+import { bodyDoubleApi } from '../../services/bodyDouble.api';
 import { formatDateTimeInTimeZone } from '../../services/timezone';
 import { useAuthStore } from '../../store/authStore';
 import { useOfflineStore } from '../../store/offlineStore';
+import { useBodyDoubleSessions } from '../../hooks/useBodyDoubleSessions';
 
 export default function InboxScreen() {
   const qc = useQueryClient();
-  const timezone = useAuthStore((s) => s.user?.timezone);
+  const user = useAuthStore((s) => s.user);
+  const timezone = user?.timezone;
   const isOnline = useOfflineStore((s) => s.isOnline);
 
   const {
@@ -31,17 +34,13 @@ export default function InboxScreen() {
     data: sessions = [],
     isLoading: sessionsLoading,
     refetch: refetchSessions,
-  } = useQuery({
-    queryKey: ['body-double-sessions', 'invitee'],
-    queryFn: () => bodyDoubleApi.listSessions('invitee'),
-    enabled: isOnline,
-  });
+  } = useBodyDoubleSessions(true, 'invitee');
 
   // Extract pending invitations from sessions
   const pendingInvitations = useMemo(() => {
     return sessions.flatMap((session) =>
       (session.invitations ?? [])
-        .filter((inv) => inv.status === 'pending')
+        .filter((inv) => inv.status === 'pending' && inv.invitee_id === user?.id)
         .map((inv) => ({
           invitationId: inv.id,
           sessionId: session.id,
@@ -51,7 +50,7 @@ export default function InboxScreen() {
           scheduledAt: session.scheduled_at,
         }))
     );
-  }, [sessions]);
+  }, [sessions, user?.id]);
 
   const acceptFriendMutation = useMutation({
     mutationFn: friendsApi.accept,
@@ -79,14 +78,14 @@ export default function InboxScreen() {
       qc.invalidateQueries({ queryKey: ['body-double-sessions'] });
       qc.invalidateQueries({ queryKey: ['todos'] });
       if (variables.status === 'accepted' || variables.status === 'maybe') {
-        Alert.alert(
+        AppDialog.alert(
           'Session Added',
           'The body doubling session has been added to your calendar.'
         );
       }
     },
     onError: (error: any) => {
-      Alert.alert('Error', error?.response?.data?.error ?? 'Failed to respond.');
+      AppDialog.alert('Error', error?.response?.data?.error ?? 'Failed to respond.');
     },
   });
 

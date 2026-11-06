@@ -1,5 +1,6 @@
+import { AppDialog } from '../../services/appDialog';
 import React from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { View, Text, StyleSheet, } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { WifiOff } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
@@ -40,7 +41,7 @@ export default function SocialScreen() {
   });
   const sendRequestMutation = useMutation({
     mutationFn: friendsApi.sendRequest,
-    onError: (e: any) => Alert.alert('Error', e?.response?.data?.error ?? 'Could not send request'),
+    onError: (e: any) => AppDialog.alert('Error', e?.response?.data?.error ?? 'Could not send request'),
   });
 
   return (
@@ -79,7 +80,7 @@ export default function SocialScreen() {
                 key={friend.friendship_id}
                 item={friend}
                 onRemove={() => {
-                  Alert.alert('Remove Friend', `Remove ${friend.user.username}?`, [
+                  AppDialog.alert('Remove Friend', `Remove ${friend.user.username}?`, [
                     { text: 'Cancel', style: 'cancel' },
                     { text: 'Remove', style: 'destructive', onPress: () => removeMutation.mutate(friend.friendship_id) },
                   ]);

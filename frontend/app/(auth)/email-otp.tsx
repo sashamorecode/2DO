@@ -1,5 +1,6 @@
+import { AppDialog } from '../../services/appDialog';
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Alert, Platform, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Platform, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { colors } from '../../constants/colors';
 import { Input } from '../../components/ui/Input';
@@ -26,7 +27,7 @@ export default function EmailOTPScreen() {
 
   async function onVerify() {
     if (code.length !== 6) {
-      Alert.alert('Invalid Code', 'Enter the 6-digit code from your email');
+      AppDialog.alert('Invalid Code', 'Enter the 6-digit code from your email');
       return;
     }
     setVerifying(true);
@@ -34,7 +35,7 @@ export default function EmailOTPScreen() {
       const res = await authApi.verifyEmailOTP(email, code);
       await setAuth(res.token, res.user);
     } catch (e: any) {
-      Alert.alert('Sign In Failed', e?.response?.data?.error ?? 'Invalid or expired code');
+      AppDialog.alert('Sign In Failed', e?.response?.data?.error ?? 'Invalid or expired code');
     } finally {
       setVerifying(false);
     }
@@ -44,9 +45,9 @@ export default function EmailOTPScreen() {
     setResending(true);
     try {
       await authApi.startEmailOTP(email);
-      Alert.alert('Code Sent', 'Check your inbox for a new code');
+      AppDialog.alert('Code Sent', 'Check your inbox for a new code');
     } catch (e: any) {
-      Alert.alert('Could Not Send Code', e?.response?.data?.error ?? 'Try again in a moment');
+      AppDialog.alert('Could Not Send Code', e?.response?.data?.error ?? 'Try again in a moment');
     } finally {
       setResending(false);
     }

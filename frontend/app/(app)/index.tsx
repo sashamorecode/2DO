@@ -1,3 +1,4 @@
+import { AppDialog } from '../../services/appDialog';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
@@ -6,7 +7,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   RefreshControl,
-  Alert,
   ScrollView,
 } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -29,7 +29,7 @@ import { FinishedRow } from '../../components/todo/FinishedRow';
 import { todosApi, Todo } from '../../services/todos.api';
 import { feedApi, FriendFeedItem } from '../../services/feed.api';
 import { tagsApi, Tag } from '../../services/tags.api';
-import { bodyDoubleApi, BodyDoubleSession } from '../../services/bodyDouble.api';
+import { BodyDoubleSession } from '../../services/bodyDouble.api';
 import { useAuthStore } from '../../store/authStore';
 import { PRIORITIES, PRIORITY_ORDER } from '../../constants/priorities';
 import { SessionCard } from '../../components/bodyDouble/SessionCard';
@@ -40,6 +40,7 @@ import { sortTodoGroup } from '../../services/todoOrder';
 import { ReorderableTaskBoard } from '../../components/todo/ReorderableTaskBoard';
 import { isTodoOnDay } from '../../services/todoDates';
 import { useTodayKey } from '../../hooks/useTodayKey';
+import { useBodyDoubleSessions } from '../../hooks/useBodyDoubleSessions';
 
 type PrimaryTab = 'mine' | 'friends';
 type SecondaryTab = 'active' | 'today' | 'calendar' | 'done';
@@ -114,11 +115,7 @@ export default function TasksScreen() {
     refetchInterval: 30_000,
   });
 
-  const bodyDoubleSessionsQuery = useQuery({
-    queryKey: ['body-double-sessions'],
-    queryFn: () => bodyDoubleApi.listSessions(),
-    enabled: secondaryTab === 'calendar',
-  });
+  const bodyDoubleSessionsQuery = useBodyDoubleSessions(secondaryTab === 'calendar');
 
   const completeMutation = useMutation({
     mutationFn: (id: string) => offlineOps.completeTodo(id),
@@ -135,16 +132,16 @@ export default function TasksScreen() {
     onSuccess: (data, variables) => {
       const ownerName = variables.ownerName ?? 'your friend';
       if (data.delivered === false) {
-        Alert.alert(
+        AppDialog.alert(
           'Poke not delivered',
           `${ownerName}'s notifications may be off, so the poke couldn't be sent.`
         );
         return;
       }
-      Alert.alert('Poke sent', `${ownerName} got a reminder for "${variables.title}".`);
+      AppDialog.alert('Poke sent', `${ownerName} got a reminder for "${variables.title}".`);
     },
     onError: (error: any) => {
-      Alert.alert('Error', error?.response?.data?.error ?? 'Could not send poke');
+      AppDialog.alert('Error', error?.response?.data?.error ?? 'Could not send poke');
     },
   });
 
@@ -245,6 +242,7 @@ export default function TasksScreen() {
   const todayLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: timezone }).format(new Date());
 
   const onRefresh = () => {
+    if (secondaryTab === 'calendar') bodyDoubleSessionsQuery.refetch();
     if (primaryTab === 'mine' && secondaryTab === 'done') {
       myDoneQuery.refetch();
       return;
@@ -268,7 +266,7 @@ export default function TasksScreen() {
     <Screen edges={['top', 'left', 'right']}>
       <View style={styles.heroCard}>
         <View style={styles.heroTopRow}>
-          <ChristmasArtwork style={styles.heroArtwork} />
+          <ChristmasArtwork style={styles.heroArtwork} width={88} />
           <View style={styles.heroTextBlock}>
             <View style={styles.heroTitleRow}>
               <Text style={styles.heroTitle}>{title}</Text>
@@ -286,14 +284,6 @@ export default function TasksScreen() {
             </View>
             <Text style={styles.heroDate}>{todayLabel}</Text>
           </View>
-        </View>
-        <View style={styles.heroActions}>
-          {primaryTab === 'mine' ? (
-            <TouchableOpacity onPress={() => router.push('/(app)/todo/new')} style={styles.addBtn}>
-              <Plus size={16} color={colors.onAccent} strokeWidth={2.6} />
-              <Text style={styles.addBtnText}>New Task</Text>
-            </TouchableOpacity>
-          ) : null}
         </View>
 
         <TabStrip
@@ -320,18 +310,24 @@ export default function TasksScreen() {
 
         {primaryTab === 'mine' ? (
           <>
-            <TouchableOpacity
-              onPress={() => setFilterVisible((prev) => !prev)}
-              style={styles.filterToggle}
-            >
-              <SlidersHorizontal size={14} color={filterVisible ? colors.accent : colors.textMuted} />
-              <Text style={[styles.filterToggleText, filterVisible && styles.filterToggleTextActive]}>
-                Filter
-              </Text>
-              {(urgencyFilter !== 'all' || selectedTagIds.length > 0) ? (
-                <View style={styles.filterActiveDot} />
-              ) : null}
-            </TouchableOpacity>
+            <View style={styles.heroActions}>
+              <TouchableOpacity
+                onPress={() => setFilterVisible((prev) => !prev)}
+                style={styles.filterToggle}
+              >
+                <SlidersHorizontal size={14} color={filterVisible ? colors.accent : colors.textMuted} />
+                <Text style={[styles.filterToggleText, filterVisible && styles.filterToggleTextActive]}>
+                  Filter
+                </Text>
+                {(urgencyFilter !== 'all' || selectedTagIds.length > 0) ? (
+                  <View style={styles.filterActiveDot} />
+                ) : null}
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push('/(app)/todo/new')} style={styles.addBtn}>
+                <Plus size={16} color={colors.onAccent} strokeWidth={2.6} />
+                <Text style={styles.addBtnText}>New Task</Text>
+              </TouchableOpacity>
+            </View>
             {filterVisible ? (
               <FilterBar
                 urgencyFilter={urgencyFilter}
@@ -942,30 +938,31 @@ function getDaySubtitle(iso: string, timezone?: string): string {
 const styles = StyleSheet.create({
   heroCard: {
     marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 12,
-    padding: 8,
+    marginTop: 0,
+    marginBottom: 6,
+    padding: 4,
     overflow: 'hidden',
-    gap: 14,
+    gap: 6,
   },
   heroTopRow: {
-    minHeight: 138,
+    minHeight: 76,
     justifyContent: 'center',
   },
   heroArtwork: {
-    position: 'absolute', right: -12, top: -15,
-    width: 196, height: 183,
+    position: 'absolute', right: 0, top: -4,
+    width: 88, height: 82,
   },
-  heroTextBlock: { paddingRight: 150, gap: 8 },
+  heroTextBlock: { paddingRight: 96, gap: 4 },
   heroTitle: {
     color: colors.text,
-    fontSize: 27,
+    fontSize: 23,
     fontWeight: '800',
     letterSpacing: -0.7,
   },
   heroDate: { color: colors.textMuted, fontSize: 12, lineHeight: 18 },
-  heroActions: { alignItems: 'flex-end' },
+  heroActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   addBtn: {
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -1088,6 +1085,7 @@ const styles = StyleSheet.create({
     paddingRight: 6,
   },
   filterToggle: {
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
@@ -1256,6 +1254,7 @@ const styles = StyleSheet.create({
   },
   heroTitleRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: 10,
   },

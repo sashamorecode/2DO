@@ -1,5 +1,6 @@
+import { AppDialog } from '../../../services/appDialog';
 import React, { useRef } from 'react';
-import { View, Text, StyleSheet, Alert, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Users, WifiOff } from 'lucide-react-native';
@@ -39,7 +40,7 @@ export default function EditTodoScreen() {
     },
     onError: (error: any) => {
       suspendAutoSaveRef.current = false;
-      Alert.alert('Could not delete task', error?.response?.data?.error ?? 'Please try again.');
+      AppDialog.alert('Could not delete task', error?.response?.data?.error ?? 'Please try again.');
     },
   });
 
@@ -56,7 +57,7 @@ export default function EditTodoScreen() {
   }
 
   function confirmDelete() {
-    Alert.alert('Delete Task', 'Are you sure?', [
+    AppDialog.alert('Delete Task', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',

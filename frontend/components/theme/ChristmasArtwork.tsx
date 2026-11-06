@@ -37,10 +37,10 @@ const scene = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 210 195" fil
   <circle cx="188" cy="106" r="2" fill="#DDEEEF"/><circle cx="106" cy="63" r="1.5" fill="#DDEEEF"/><circle cx="55" cy="47" r="1.5" fill="#DDEEEF"/>
 </svg>`;
 
-export function ChristmasArtwork({ style }: { style?: StyleProp<ViewStyle> }) {
+export function ChristmasArtwork({ style, width = 196 }: { style?: StyleProp<ViewStyle>; width?: number }) {
   return (
     <View style={style} pointerEvents="none" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      <SvgXml xml={scene} width={196} height={183} />
+      <SvgXml xml={scene} width={width} height={width * 195 / 210} />
     </View>
   );
 }

@@ -1,5 +1,6 @@
+import { AppDialog } from '../../services/appDialog';
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -42,7 +43,7 @@ export default function ProfileScreen() {
       await setUser(updated);
       setEditing(false);
     } catch (e: any) {
-      Alert.alert('Could Not Save', e?.response?.data?.error ?? 'Try a different username');
+      AppDialog.alert('Could Not Save', e?.response?.data?.error ?? 'Try a different username');
     }
   }
 
@@ -58,7 +59,7 @@ export default function ProfileScreen() {
           'Logging out discards them. Cancel to stay logged in and keep them.'
         : 'You will need to sign in again to access your tasks.';
 
-    Alert.alert('Log Out?', message, [
+    AppDialog.alert('Log Out?', message, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Log Out',
@@ -120,14 +121,14 @@ export default function ProfileScreen() {
               variant="secondary"
               onPress={async () => {
                 if (!user?.id) {
-                  Alert.alert('Not signed in', 'Sign in before sending a test notification.');
+                  AppDialog.alert('Not signed in', 'Sign in before sending a test notification.');
                   return;
                 }
                 try {
                   await presentTestNotification(user.id);
-                  Alert.alert('Test scheduled', 'A test notification will appear in about 3 seconds.');
+                  AppDialog.alert('Test scheduled', 'A test notification will appear in about 3 seconds.');
                 } catch (e) {
-                  Alert.alert('Test failed', String((e as Error)?.message ?? e));
+                  AppDialog.alert('Test failed', String((e as Error)?.message ?? e));
                 }
               }}
             />

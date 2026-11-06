@@ -1,5 +1,6 @@
+import { AppDialog } from '../../services/appDialog';
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -34,7 +35,7 @@ export default function LoginScreen() {
       const res = await authApi.google(idToken);
       await setAuth(res.token, res.user);
     } catch (e: any) {
-      Alert.alert('Sign In Failed', e?.response?.data?.error ?? e?.message ?? 'Could not sign in with Google');
+      AppDialog.alert('Sign In Failed', e?.response?.data?.error ?? e?.message ?? 'Could not sign in with Google');
     } finally {
       setGoogleLoading(false);
     }
@@ -48,7 +49,7 @@ export default function LoginScreen() {
         params: { email: data.email, devCode: res.code ?? '' },
       });
     } catch (e: any) {
-      Alert.alert('Could Not Send Code', e?.response?.data?.error ?? 'Try again in a moment');
+      AppDialog.alert('Could Not Send Code', e?.response?.data?.error ?? 'Try again in a moment');
     }
   }
 
@@ -58,7 +59,7 @@ export default function LoginScreen() {
       const res = await authApi.devLogin();
       await setAuth(res.token, res.user);
     } catch (e: any) {
-      Alert.alert('Dev Login Failed', e?.response?.data?.error ?? 'Is the backend running with DEV_MODE=true?');
+      AppDialog.alert('Dev Login Failed', e?.response?.data?.error ?? 'Is the backend running with DEV_MODE=true?');
     } finally {
       setDevLoading(false);
     }

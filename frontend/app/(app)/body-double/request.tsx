@@ -1,3 +1,4 @@
+import { AppDialog } from '../../../services/appDialog';
 import React from 'react';
 import {
   View,
@@ -5,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
@@ -72,7 +72,7 @@ export default function BodyDoubleRequestScreen() {
       router.back();
     },
     onError: (error: any) => {
-      Alert.alert('Error', error?.response?.data?.error ?? 'Failed to send invitations.');
+      AppDialog.alert('Error', error?.response?.data?.error ?? 'Failed to send invitations.');
     },
   });
 

@@ -1,3 +1,4 @@
+import { AppDialog } from '../../services/appDialog';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
@@ -5,18 +6,16 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Platform,
   Switch,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { Calendar as CalendarIcon, Clock as ClockIcon, Check, Plus, X, Lock } from 'lucide-react-native';
+import { DateTimeField } from '../ui/DateTimeField';
+import { Check, Plus, X, Lock } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 import { Priority, PRIORITIES, PRIORITY_ORDER } from '../../constants/priorities';
 import { Input } from '../ui/Input';
@@ -234,7 +233,7 @@ export function TodoForm({
               finishSave();
             } catch (error: any) {
               savedRef.current = false;
-              Alert.alert(
+              AppDialog.alert(
                 'Could not save task',
                 error?.response?.data?.error ?? 'Please try again.'
               );
@@ -242,7 +241,7 @@ export function TodoForm({
           },
           () => {
             savedRef.current = false;
-            Alert.alert('Could not save task', 'Please fix the highlighted fields.');
+            AppDialog.alert('Could not save task', 'Please fix the highlighted fields.');
           }
         )().catch(() => {
           savedRef.current = false;
@@ -274,7 +273,7 @@ export function TodoForm({
   async function createTag() {
     const name = newTagName.trim();
     if (!name) {
-      Alert.alert('Tag name required', 'Please enter a name for the new tag.');
+      AppDialog.alert('Tag name required', 'Please enter a name for the new tag.');
       return;
     }
 
@@ -286,7 +285,7 @@ export function TodoForm({
       setNewTagName('');
       setShowTagCreator(false);
     } catch (error: any) {
-      Alert.alert('Could not create tag', error?.response?.data?.error ?? 'Try a different name.');
+      AppDialog.alert('Could not create tag', error?.response?.data?.error ?? 'Try a different name.');
     }
   }
 
@@ -520,102 +519,6 @@ export function TodoForm({
   );
 }
 
-function DateTimeField({
-  label,
-  date,
-  hasTime,
-  onDate,
-  onHasTime,
-}: {
-  label: string;
-  date: Date | null | undefined;
-  hasTime: boolean;
-  onDate: (d: Date | null) => void;
-  onHasTime: (b: boolean) => void;
-}) {
-  const [showDate, setShowDate] = useState(false);
-  const [showTime, setShowTime] = useState(false);
-
-  const dateLabel = date
-    ? date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
-    : 'Pick a date…';
-  const timeLabel = date && hasTime
-    ? date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
-    : 'No time set';
-
-  return (
-    <View style={{ marginBottom: 18 }}>
-      <Text style={styles.label}>{label}</Text>
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        <TouchableOpacity style={[styles.dateBtn, { flex: 1 }]} onPress={() => setShowDate(true)}>
-          <CalendarIcon size={16} color={date ? colors.accentLight : colors.textDim} strokeWidth={2.2} />
-          <Text style={date ? styles.dateText : styles.datePlaceholder}>{dateLabel}</Text>
-        </TouchableOpacity>
-        {date && (
-          <TouchableOpacity onPress={() => { onDate(null); onHasTime(false); }} style={styles.clearBtn}>
-            <X size={16} color={colors.error} strokeWidth={2.4} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {date && (
-        <View style={styles.timeRow}>
-          <Text style={styles.timeLabel}>Add time</Text>
-          <Switch
-            value={hasTime}
-            onValueChange={(b) => {
-              onHasTime(b);
-              if (b) setShowTime(true);
-            }}
-            trackColor={{ false: colors.border, true: colors.accent }}
-          />
-          {hasTime && (
-            <TouchableOpacity style={styles.timeBtn} onPress={() => setShowTime(true)}>
-              <ClockIcon size={14} color={colors.accentLight} strokeWidth={2.2} />
-              <Text style={styles.dateText}>{timeLabel}</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
-
-      {showDate && (
-        <DateTimePicker
-          value={date ?? new Date()}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'inline' : 'default'}
-          onChange={(_, picked) => {
-            setShowDate(Platform.OS === 'ios');
-            if (picked) {
-              const next = new Date(picked);
-              if (date && hasTime) {
-                next.setHours(date.getHours(), date.getMinutes(), 0, 0);
-              }
-              onDate(next);
-            }
-          }}
-          themeVariant="dark"
-        />
-      )}
-      {showTime && date && (
-        <DateTimePicker
-          value={date}
-          mode="time"
-          display={Platform.OS === 'ios' ? 'inline' : 'default'}
-          onChange={(_, picked) => {
-            setShowTime(Platform.OS === 'ios');
-            if (picked) {
-              const next = new Date(date);
-              next.setHours(picked.getHours(), picked.getMinutes(), 0, 0);
-              onDate(next);
-            }
-          }}
-          themeVariant="dark"
-        />
-      )}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
   label: { color: colors.textMuted, fontSize: 13, fontWeight: '600', marginBottom: 8 },
@@ -695,47 +598,6 @@ const styles = StyleSheet.create({
     transform: [{ scale: 1.08 }],
   },
   addTagBtn: { marginTop: 2 },
-  dateBtn: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  dateText: { color: colors.text, fontSize: 15 },
-  datePlaceholder: { color: colors.textMuted, fontSize: 15 },
-  clearBtn: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: colors.border,
-  },
-  timeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    gap: 12,
-  },
-  timeLabel: { color: colors.textMuted, fontSize: 13 },
-  timeBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-  },
   stepsSection: { marginBottom: 18 },
   stepsList: { gap: 8 },
   stepRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

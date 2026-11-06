@@ -1,5 +1,6 @@
+import { AppDialog } from '../../services/appDialog';
 import React from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { View, Text, StyleSheet, } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -31,7 +32,7 @@ export default function OnboardingScreen() {
       const user = await authApi.updateProfile({ username: data.username, timezone });
       await setUser(user);
     } catch (e: any) {
-      Alert.alert('Could Not Save', e?.response?.data?.error ?? 'Try a different username');
+      AppDialog.alert('Could Not Save', e?.response?.data?.error ?? 'Try a different username');
     }
   }
 

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Switch, Platform, StyleSheet } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, Switch, StyleSheet } from 'react-native';
+import { AppDialog, useDialogStore } from '../../services/appDialog';
 import { Calendar as CalendarIcon, Clock as ClockIcon, X } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 
@@ -13,8 +13,18 @@ interface Props {
 }
 
 export function DateTimeField({ label, date, hasTime, onDate, onHasTime }: Props) {
-  const [showDate, setShowDate] = useState(false);
-  const [showTime, setShowTime] = useState(false);
+  const dialogId = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (dialogId.current !== null) AppDialog.dismiss(dialogId.current);
+  }, []);
+  const openPicker = (mode: 'date' | 'time') => {
+    if (useDialogStore.getState().queue.some((request) => request.id === dialogId.current)) return;
+    dialogId.current = AppDialog.dateTime(mode, date ?? new Date(), (picked) => {
+      dialogId.current = null;
+      onDate(picked);
+      if (mode === 'time') onHasTime(true);
+    });
+  };
 
   const dateLabel = date
     ? date.toLocaleDateString(undefined, {
@@ -33,7 +43,7 @@ export function DateTimeField({ label, date, hasTime, onDate, onHasTime }: Props
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
       <View style={styles.dateRow}>
-        <TouchableOpacity style={styles.dateBtn} onPress={() => setShowDate(true)}>
+        <TouchableOpacity style={styles.dateBtn} onPress={() => openPicker('date')}>
           <CalendarIcon size={16} color={date ? colors.accentLight : colors.textDim} strokeWidth={2.2} />
           <Text style={date ? styles.dateText : styles.datePlaceholder}>{dateLabel}</Text>
         </TouchableOpacity>
@@ -43,6 +53,8 @@ export function DateTimeField({ label, date, hasTime, onDate, onHasTime }: Props
               onDate(null);
               onHasTime(false);
             }}
+            accessibilityRole="button"
+            accessibilityLabel={`Clear ${label.toLowerCase()}`}
             style={styles.clearBtn}
           >
             <X size={16} color={colors.error} strokeWidth={2.4} />
@@ -56,13 +68,13 @@ export function DateTimeField({ label, date, hasTime, onDate, onHasTime }: Props
           <Switch
             value={hasTime}
             onValueChange={(b) => {
-              onHasTime(b);
-              if (b) setShowTime(true);
+              if (b) openPicker('time');
+              else onHasTime(false);
             }}
             trackColor={{ false: colors.border, true: colors.accent }}
           />
           {hasTime && (
-            <TouchableOpacity style={styles.timeBtn} onPress={() => setShowTime(true)}>
+            <TouchableOpacity style={styles.timeBtn} onPress={() => openPicker('time')}>
               <ClockIcon size={14} color={colors.accentLight} strokeWidth={2.2} />
               <Text style={styles.dateText}>{timeLabel}</Text>
             </TouchableOpacity>
@@ -70,40 +82,7 @@ export function DateTimeField({ label, date, hasTime, onDate, onHasTime }: Props
         </View>
       )}
 
-      {showDate && (
-        <DateTimePicker
-          value={date ?? new Date()}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'inline' : 'default'}
-          onChange={(_, picked) => {
-            setShowDate(Platform.OS === 'ios');
-            if (picked) {
-              const next = new Date(picked);
-              if (date && hasTime) {
-                next.setHours(date.getHours(), date.getMinutes(), 0, 0);
-              }
-              onDate(next);
-            }
-          }}
-          themeVariant="dark"
-        />
-      )}
-      {showTime && date && (
-        <DateTimePicker
-          value={date}
-          mode="time"
-          display={Platform.OS === 'ios' ? 'inline' : 'default'}
-          onChange={(_, picked) => {
-            setShowTime(Platform.OS === 'ios');
-            if (picked) {
-              const next = new Date(date);
-              next.setHours(picked.getHours(), picked.getMinutes(), 0, 0);
-              onDate(next);
-            }
-          }}
-          themeVariant="dark"
-        />
-      )}
+
     </View>
   );
 }

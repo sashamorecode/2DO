@@ -5,6 +5,7 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { persistQueryClient } from '@tanstack/react-query-persist-client';
 import { useAuthStore } from '../store/authStore';
+import { AppDialogHost } from '../components/ui/AppDialogHost';
 import { AppViewport } from '../components/ui/AppViewport';
 import { useNotifications } from '../hooks/useNotifications';
 import { configureGoogleSignIn } from '../services/googleSignIn';
@@ -94,6 +95,7 @@ export default function RootLayout() {
           <AuthGuard />
           <CelebrationHost />
         </AppViewport>
+        <AppDialogHost />
       </QueryClientProvider>
     </KeyboardProvider>
   );
