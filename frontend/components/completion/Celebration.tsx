@@ -3,6 +3,7 @@ import { AccessibilityInfo, AppState, StyleSheet, View, useWindowDimensions } fr
 import Animated, { cancelAnimation, Easing, Extrapolation, interpolate, ReduceMotion, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SvgXml } from 'react-native-svg';
 import { SantaSleigh } from './SantaSleigh';
+import { smoothSample as sample, springImpulse, giftRebound } from './christmasMotion';
 
 interface WrappedTask {
   x: number;
@@ -78,21 +79,6 @@ const CelebrationOverlay = forwardRef<CelebrationOverlayRef>((_, ref) => {
 });
 CelebrationOverlay.displayName = 'CelebrationOverlay';
 
-// Keep the shared-value read inside each mapper. A worklet helper that closes
-// over time hides it from Reanimated's mapper input discovery and freezes styles.
-function sample(elapsed: number, points: number[], values: number[]) {
-  'worklet';
-  if (elapsed <= points[0]) return values[0];
-  for (let i = 1; i < points.length; i++) {
-    if (elapsed <= points[i]) {
-      const t = (elapsed - points[i - 1]) / (points[i] - points[i - 1]);
-      const eased = t * t * (3 - 2 * t);
-      return values[i - 1] + (values[i] - values[i - 1]) * eased;
-    }
-  }
-  return values[values.length - 1];
-}
-
 function GiftFlight({ task, viewportWidth, viewportHeight }: { task: Flight; viewportWidth: number; viewportHeight: number }) {
   const time = useSharedValue(0);
   const { x, y, width, height } = task;
@@ -104,38 +90,44 @@ function GiftFlight({ task, viewportWidth, viewportHeight }: { task: Flight; vie
     time.value = withTiming(DURATION, { duration: DURATION, easing: Easing.linear, reduceMotion: ReduceMotion.Never });
     return () => cancelAnimation(time);
   }, [time]);
-  // The loaded gift and sleigh use the same pivot and accelerating exit.
-  const departure = (elapsed: number) => {
+  // One rigid carrier frame keeps the loaded present on the sleigh, including
+  // the landing suspension and launch. Every mapper reads time.value directly.
+  const carrier = (elapsed: number) => {
     'worklet';
     const launch = Math.max(0, Math.min(1, (elapsed - 1770) / 630));
+    const arrivalX = sample(elapsed, [620, 1050], [-sx - 260, 0]);
+    const driveX = elapsed < 1640 ? arrivalX : sample(elapsed, [1640, 1770], [0, -12]) + (exitX + 12) * launch * launch;
     return [
-      { translateX: sample(elapsed, [1640, 1770], [0, -12]) + (exitX + 12) * launch * launch },
-      { translateY: sample(elapsed, [1640, 1770], [0, 6]) - 290 * launch * launch },
-      { rotate: `${sample(elapsed, [1640, 1770, 2050, 2400], [0, -8, -18, -12])}deg` },
+      { translateX: driveX + springImpulse(elapsed, 1050, 14, 22, 9) },
+      { translateY: sample(elapsed, [620, 1050, 1640, 1770], [35, 0, 0, 6]) - 290 * launch * launch
+        + springImpulse(elapsed, 1050, 4, 24, 9) + springImpulse(elapsed, 1490, 14) },
+      { rotate: `${sample(elapsed, [620, 1050, 1640, 1770, 2050, 2400], [-10, 0, 0, -8, -18, -12])
+        + springImpulse(elapsed, 1050, -3, 22, 9) + springImpulse(elapsed, 1490, -4)}deg` },
       { scale: sample(elapsed, [1770, 2400], [1, 0.65]) },
     ];
   };
   const vehicleStyle = useAnimatedStyle(() => ({
     opacity: sample(time.value, [620, 660, 2260, 2400], [0, 1, 1, 0]),
-    transform: time.value >= 1640 ? departure(time.value) : [
-      { translateX: sample(time.value, [620, 1050, 1150], [-sx - 260, 10, 0]) },
-      { translateY: sample(time.value, [620, 1050, 1150, 1490, 1560, 1640], [35, -5, 0, 0, 6, 0]) },
-      { rotate: `${sample(time.value, [620, 1050, 1150], [-10, 3, 0])}deg` },
-      { scale: 1 },
-    ],
+    transform: carrier(time.value),
   }));
   const parcelStage = useAnimatedStyle(() => ({
     opacity: sample(time.value, [2260, 2400], [1, 0]),
-    transform: departure(time.value),
+    transform: time.value >= 1490 ? carrier(time.value) : [
+      { translateX: 0 }, { translateY: 0 }, { rotate: '0deg' }, { scale: 1 },
+    ],
   }));
   const parcel = useAnimatedStyle(() => ({
     left: sample(time.value, [0, 380, 720, 1150, 1300, 1490], [x - sx, x - sx, giftX - sx, giftX - sx, 26, 40]),
-    top: sample(time.value, [0, 160, 380, 720, 1150, 1300, 1490, 1560, 1640], [y - sy, y - sy - 5, y - sy - 5, y - sy - 24, y - sy - 24, -24, 54, 60, 54]),
+    top: time.value < 1300
+      ? sample(time.value, [0, 160, 380, 720, 1150, 1300], [y - sy, y - sy - 5, y - sy - 5, y - sy - 24, y - sy - 24, -24])
+      : -24 + 78 * Math.min(1, (time.value - 1300) / 190) ** 2 - giftRebound(time.value),
     width: sample(time.value, [380, 720, 1150, 1490], [width, 104, 104, 56]),
     height: sample(time.value, [380, 720, 1150, 1490], [height, 88, 88, 48]),
     transform: [
-      { rotate: `${sample(time.value, [0, 110, 240, 380, 720, 1150, 1300, 1490], [0, -1.5, 1, 0, -4, -4, -16, -5])}deg` },
+      { rotate: `${sample(time.value, [0, 110, 240, 380, 720, 1150, 1300, 1490], [0, -1.5, 1, 0, -4, -4, -16, -5]) + springImpulse(time.value, 1490, 5, 28, 10)}deg` },
       { scale: sample(time.value, [0, 100, 240, 380], [1, 1.025, 0.99, 1]) },
+      { scaleX: 1 + springImpulse(time.value, 1490, 0.07, 32, 16) },
+      { scaleY: 1 - springImpulse(time.value, 1490, 0.09, 32, 16) },
     ],
   }));
   const snapshot = useAnimatedStyle(() => ({ opacity: sample(time.value, [320, 460], [1, 0]) }));
@@ -144,7 +136,10 @@ function GiftFlight({ task, viewportWidth, viewportHeight }: { task: Flight; vie
   const bottom = useAnimatedStyle(() => ({ transform: [{ translateY: sample(time.value, [310, 460], [height, 0]) }] }));
   const vertical = useAnimatedStyle(() => ({ transform: [{ scaleY: sample(time.value, [580, 740], [0, 1]) }] }));
   const horizontal = useAnimatedStyle(() => ({ transform: [{ scaleX: sample(time.value, [620, 780], [0, 1]) }] }));
-  const bowStyle = useAnimatedStyle(() => ({ transform: [{ scale: sample(time.value, [700, 810, 890], [0, 1.18, 1]) }] }));
+  const bowStyle = useAnimatedStyle(() => ({ transform: [
+    { scale: sample(time.value, [700, 800], [0, 1]) + springImpulse(time.value, 800, 0.25, 28, 12) },
+    { rotate: `${springImpulse(time.value, 1510, 16, 26, 8)}deg` },
+  ] }));
 
   return <>
     <Animated.View style={[styles.stage, { left: sx, top: sy }, parcelStage]}>
@@ -160,7 +155,7 @@ function GiftFlight({ task, viewportWidth, viewportHeight }: { task: Flight; vie
         <Animated.View style={[styles.bow, bowStyle]}><SvgXml xml={bow} width={64} height={45} /></Animated.View>
       </Animated.View>
     </Animated.View>
-    <Animated.View testID="christmas-sleigh" style={[styles.stage, { left: sx, top: sy }, vehicleStyle]}><SantaSleigh /></Animated.View>
+    <Animated.View testID="christmas-sleigh" style={[styles.stage, { left: sx, top: sy }, vehicleStyle]}><SantaSleigh time={time} /></Animated.View>
     {Array.from({ length: 12 }, (_, index) => <Sparkle key={index} time={time} index={index} x={sx} y={sy} />)}
   </>;
 }
@@ -186,7 +181,7 @@ function Sparkle({ time, index, x, y }: { time: { value: number }; index: number
 const styles = StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFillObject, zIndex: 20, overflow: 'hidden' },
   stage: { position: 'absolute', width: 230, height: 150 },
-  parcel: { position: 'absolute' },
+  parcel: { position: 'absolute', transformOrigin: '50% 100%' },
   shell: { ...StyleSheet.absoluteFillObject, borderRadius: 14, overflow: 'hidden' },
   paper: { position: 'absolute', top: 0, bottom: 0, borderWidth: 1, borderColor: '#ED879560' },
   paperLeft: { left: 0, right: '48%', backgroundColor: '#B74356' },

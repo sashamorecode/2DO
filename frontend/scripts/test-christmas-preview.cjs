@@ -41,7 +41,18 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     assert.ok(trace.every(f => Math.abs(f.height - first.height) < 2), 'row does not stretch');
     assert.ok(trace.every(f => Math.abs(f.groupHeight - first.groupHeight) < 2), 'group heading does not stretch');
     assert.ok(trace.some(f => f.groupY < first.groupY - 10 && f.groupY > last.groupY + 10), 'following group moves smoothly');
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(400);
+    const santaMotion = () => page.evaluate(() => ({
+      body: getComputedStyle(document.querySelector('[data-testid="santa-body"]')).transform,
+      hat: getComputedStyle(document.querySelector('[data-testid="santa-hat"]')).transform,
+      arm: getComputedStyle(document.querySelector('[data-testid="santa-arm"]')).transform,
+      reins: document.querySelector('[data-testid="santa-reins"]').getAttribute('d'),
+    }));
+    const impactBefore = await santaMotion();
+    await page.waitForTimeout(100);
+    const impactAfter = await santaMotion();
+    for (const key of ['body', 'hat', 'arm', 'reins']) assert.notEqual(impactBefore[key], impactAfter[key], `${key} responds during landing`);
+    await page.waitForTimeout(1000);
     assert.equal(await sleigh.count(), 0, 'flight finishes within 2.6 seconds');
     // Removing the last task in a section also moves the following header.
     await complete('Send the Christmas cards');
@@ -80,6 +91,6 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     await page.waitForTimeout(1200);
     assert.equal(await sleigh.count(), 0);
     assert.deepEqual(errors, []);
-    console.log('PASS: snappy flight, smooth row/group movement without stretching, section removal, keyboard reorder, rapid completions, empty state, reduced motion and desktop alignment.');
+    console.log('PASS: damped landing, Santa follow-through, moving reins, smooth row/group movement without stretching, section removal, keyboard reorder, rapid completions, empty state, reduced motion and desktop alignment.');
   } finally { await browser.close(); }
 })();
