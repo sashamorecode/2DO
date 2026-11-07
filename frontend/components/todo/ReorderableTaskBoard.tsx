@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   PanResponder,
@@ -9,6 +9,8 @@ import {
   Text,
   View,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
+import { completionLayout, completionExit, completionEnter, countEnter } from '../completion/CompletionLayout';
 import { GripVertical } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 import type { Todo } from '../../services/todos.api';
@@ -129,12 +131,12 @@ export function ReorderableTaskBoard({ groups, loading, onRefresh, onComplete, o
           <RefreshControl enabled={!drag} refreshing={loading} onRefresh={() => { if (!current.current) onRefresh(); }} tintColor={colors.accent} />
         }
       >
-        {groups.map((group) => (
-          <View key={group.priority} style={[styles.section, drag?.group.priority === group.priority && styles.raised]}>
-            <View style={styles.header}>
+        {groups.map((group, groupIndex) => (
+          <Fragment key={group.priority}>
+            <Animated.View testID={`task-group-${group.priority}`} layout={completionLayout} exiting={completionExit} style={[styles.header, { marginTop: groupIndex === 0 ? 4 : 16 }]}>
               <Text style={[styles.title, { color: group.meta.color }]}>{group.meta.label}</Text>
-              <Text style={styles.count}>{group.data.length}</Text>
-            </View>
+              <Animated.Text key={group.data.length} entering={countEnter} style={styles.count}>{group.data.length}</Animated.Text>
+            </Animated.View>
             {group.data.map((todo, index) => {
               const sameGroup = drag?.group.priority === group.priority;
               const active = sameGroup && drag.from === index;
@@ -145,8 +147,11 @@ export function ReorderableTaskBoard({ groups, loading, onRefresh, onComplete, o
                 else if (index < drag.from && index >= drag.to) translateY = drag.heights[drag.from];
               }
               return (
-                <View
+                <Animated.View
+                  layout={drag ? undefined : completionLayout}
+                  exiting={completionExit}
                   key={todo.id}
+                  testID={`task-row-${todo.id}`}
                   onLayout={(event) => heights.current.set(todo.id, event.nativeEvent.layout.height)}
                   style={[{ transform: [{ translateY }] }, active && styles.dragging]}
                 >
@@ -176,12 +181,12 @@ export function ReorderableTaskBoard({ groups, loading, onRefresh, onComplete, o
                       />
                     ) : undefined}
                   />
-                </View>
+                </Animated.View>
               );
             })}
-          </View>
+          </Fragment>
         ))}
-        {groups.length === 0 && !loading ? empty : null}
+        {groups.length === 0 && !loading ? <Animated.View entering={completionEnter}>{empty}</Animated.View> : null}
       </ScrollView>
     </View>
   );
@@ -242,9 +247,7 @@ function DragHandle(props: {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1, minHeight: 0 },
-  list: { paddingHorizontal: 16, paddingBottom: 36, gap: 12 },
-  section: { paddingTop: 4 },
-  raised: { zIndex: 1 },
+  list: { paddingHorizontal: 16, paddingBottom: 36 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   title: { fontSize: 13, fontWeight: '700', letterSpacing: 0.2 },
   count: { color: colors.textDim, fontSize: 12, fontWeight: '700' },

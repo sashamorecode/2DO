@@ -1,6 +1,6 @@
 # Christmas completion preview
 
-This isolated Expo Web entry imports the production `TodoCard`, `CelebrationHost`,
+This isolated Expo Web entry imports the production `ReorderableTaskBoard`, `CelebrationHost`,
 and Christmas artwork directly. It uses in-memory sample tasks and does not call
 the app backend. It is not included in the production entry point.
 
@@ -27,6 +27,7 @@ PREVIEW_URL=https://your-preview-url/ node scripts/test-christmas-preview.cjs
 ```
 
 `PLAYWRIGHT_MODULE` may point to an existing Playwright installation. The browser
-check covers continuous movement, overlay cleanup, rapid completions, reduced
+check covers continuous movement, row and header reflow without stretching,
+section removal, keyboard reordering, empty states, rapid completions, reduced
 motion, and alignment of the centered desktop layout. Native worklet compilation
 is checked separately because Expo Web does not run the native mapper runtime.

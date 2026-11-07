@@ -47,10 +47,10 @@ for (const [index, mapper] of styles.entries()) {
   assert.ok(Object.values(mapper.__closure).includes(clock), `Animated style ${index} hides its clock from native mapper subscriptions`);
 }
 const frame = t => { clock.value = t; return styles.map(mapper => mapper()); };
-const a = frame(1750), b = frame(2000);
+const a = frame(800), b = frame(950);
 assert.notEqual(a[0].transform[0].translateX, b[0].transform[0].translateX, 'sleigh moves continuously during arrival');
-assert.notEqual(frame(950)[2].width, frame(1100)[2].width, 'wrapping shrinks continuously');
-for (const t of [2950, 3100, 3400, 3700]) {
+assert.notEqual(frame(420)[2].width, frame(600)[2].width, 'wrapping shrinks continuously');
+for (const t of [1640, 1750, 1900, 2200]) {
   const [sleigh, gift] = frame(t);
   assert.equal(JSON.stringify(sleigh.transform), JSON.stringify(gift.transform), `gift stays with sleigh at ${t}ms`);
 }

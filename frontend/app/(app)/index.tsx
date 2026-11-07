@@ -1,3 +1,5 @@
+import Animated from 'react-native-reanimated';
+import { completionLayout, completionExit, completionEnter, countEnter } from '../../components/completion/CompletionLayout';
 import { AppDialog } from '../../services/appDialog';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
@@ -568,11 +570,11 @@ function CalendarBoard({
               <Text style={styles.calendarSubtitle}>{section.subtitle}</Text>
             </View>
             <View style={styles.calendarCountBadge}>
-              <Text style={styles.calendarCountText}>{section.tasks.length + section.sessions.length}</Text>
+              <Animated.Text key={section.tasks.length + section.sessions.length} entering={countEnter} style={styles.calendarCountText}>{section.tasks.length + section.sessions.length}</Animated.Text>
             </View>
           </View>
           {section.tasks.map((item) => (
-            <View key={`${item.owner?.id ?? 'mine'}-${item.todo.id}`}>
+            <Animated.View layout={completionLayout} exiting={completionExit} key={`${item.owner?.id ?? 'mine'}-${item.todo.id}`}>
               {item.owner ? <Text style={styles.ownerBadge}>{item.owner.username ?? 'Friend'}</Text> : null}
               <TodoCard
                 todo={item.todo}
@@ -583,7 +585,7 @@ function CalendarBoard({
                 actionLoading={pokingTodoId === item.todo.id}
                 onActionPress={item.owner && onPoke ? () => onPoke(item) : undefined}
               />
-            </View>
+            </Animated.View>
           ))}
           {section.sessions.map((session) => {
             const acceptedCount = session.invitations?.filter((inv) => inv.status === 'accepted').length ?? 0;
@@ -610,11 +612,11 @@ function CalendarBoard({
       )}
       ListEmptyComponent={
         !loading && !hasContent ? (
-          <EmptyState
+          <Animated.View entering={completionEnter}><EmptyState
             icon={<CalendarDays size={56} color={colors.accentLight} strokeWidth={1.6} />}
             title="Calendar is empty"
             description="Tasks with do dates or deadlines will line up here by day."
-          />
+          /></Animated.View>
         ) : null
       }
     />

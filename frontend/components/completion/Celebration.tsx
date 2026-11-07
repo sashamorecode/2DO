@@ -16,7 +16,7 @@ interface CelebrationOverlayRef { fire: (task: WrappedTask) => void }
 const handleRef = createRef<CelebrationOverlayRef>();
 export function celebrate(task: WrappedTask) { handleRef.current?.fire(task); }
 
-const DURATION = 4000;
+const DURATION = 2400;
 const bow = `<svg viewBox="0 0 100 70" xmlns="http://www.w3.org/2000/svg" fill="none"><path d="M50 43C-5 45 5-9 29 12L50 43ZM50 43C105 45 95-9 71 12L50 43Z" fill="#E8C478" stroke="#F4DCA3" stroke-width="4"/><path d="M48 41 27 65l-1-14-13 2 29-17M52 41l21 24 1-14 13 2-29-17" fill="#E8C478"/><ellipse cx="50" cy="40" rx="9" ry="7" fill="#F4DCA3"/></svg>`;
 
 // A root-level snapshot survives the local-first mutation removing the real row.
@@ -82,7 +82,15 @@ CelebrationOverlay.displayName = 'CelebrationOverlay';
 // over time hides it from Reanimated's mapper input discovery and freezes styles.
 function sample(elapsed: number, points: number[], values: number[]) {
   'worklet';
-  return interpolate(elapsed, points, values, Extrapolation.CLAMP);
+  if (elapsed <= points[0]) return values[0];
+  for (let i = 1; i < points.length; i++) {
+    if (elapsed <= points[i]) {
+      const t = (elapsed - points[i - 1]) / (points[i] - points[i - 1]);
+      const eased = t * t * (3 - 2 * t);
+      return values[i - 1] + (values[i] - values[i - 1]) * eased;
+    }
+  }
+  return values[values.length - 1];
 }
 
 function GiftFlight({ task, viewportWidth, viewportHeight }: { task: Flight; viewportWidth: number; viewportHeight: number }) {
@@ -96,47 +104,51 @@ function GiftFlight({ task, viewportWidth, viewportHeight }: { task: Flight; vie
     time.value = withTiming(DURATION, { duration: DURATION, easing: Easing.linear, reduceMotion: ReduceMotion.Never });
     return () => cancelAnimation(time);
   }, [time]);
-  // The gift and sleigh share the exact departure transform once loaded.
+  // The loaded gift and sleigh use the same pivot and accelerating exit.
   const departure = (elapsed: number) => {
     'worklet';
+    const launch = Math.max(0, Math.min(1, (elapsed - 1770) / 630));
     return [
-      { translateX: sample(elapsed, [2950, 3150, 4000], [0, -14, exitX]) },
-      { translateY: sample(elapsed, [2950, 3150, 4000], [0, 8, -300]) },
-      { rotate: `${sample(elapsed, [2950, 3150, 4000], [0, -7, -18])}deg` },
-      { scale: sample(elapsed, [3150, 4000], [1, 0.6]) },
+      { translateX: sample(elapsed, [1640, 1770], [0, -12]) + (exitX + 12) * launch * launch },
+      { translateY: sample(elapsed, [1640, 1770], [0, 6]) - 290 * launch * launch },
+      { rotate: `${sample(elapsed, [1640, 1770, 2050, 2400], [0, -8, -18, -12])}deg` },
+      { scale: sample(elapsed, [1770, 2400], [1, 0.65]) },
     ];
   };
   const vehicleStyle = useAnimatedStyle(() => ({
-    opacity: sample(time.value, [1650, 1680, 3850, 4000], [0, 1, 1, 0]),
-    transform: [
-      { translateX: sample(time.value, [1650, 2250, 2950, 3150, 4000], [-sx - 260, 0, 0, -14, exitX]) },
-      { translateY: sample(time.value, [1650, 2250, 2750, 2850, 2950, 3150, 4000], [45, 0, 0, 7, 0, 8, -300]) },
-      { rotate: `${sample(time.value, [1650, 2250, 2950, 3150, 4000], [-8, 0, 0, -7, -18])}deg` },
-      { scale: sample(time.value, [3150, 4000], [1, 0.6]) },
+    opacity: sample(time.value, [620, 660, 2260, 2400], [0, 1, 1, 0]),
+    transform: time.value >= 1640 ? departure(time.value) : [
+      { translateX: sample(time.value, [620, 1050, 1150], [-sx - 260, 10, 0]) },
+      { translateY: sample(time.value, [620, 1050, 1150, 1490, 1560, 1640], [35, -5, 0, 0, 6, 0]) },
+      { rotate: `${sample(time.value, [620, 1050, 1150], [-10, 3, 0])}deg` },
+      { scale: 1 },
     ],
   }));
   const parcelStage = useAnimatedStyle(() => ({
-    opacity: sample(time.value, [3850, 4000], [1, 0]),
+    opacity: sample(time.value, [2260, 2400], [1, 0]),
     transform: departure(time.value),
   }));
   const parcel = useAnimatedStyle(() => ({
-    left: sample(time.value, [0, 900, 1250, 2250, 2500, 2750], [x - sx, x - sx, giftX - sx, giftX - sx, 30, 40]),
-    top: sample(time.value, [0, 2250, 2500, 2750, 2850, 2950], [y - sy, y - sy, -25, 54, 61, 54]),
-    width: sample(time.value, [900, 1250, 2250, 2750], [width, 104, 104, 56]),
-    height: sample(time.value, [900, 1250, 2250, 2750], [height, 88, 88, 48]),
-    transform: [{ rotate: `${sample(time.value, [2250, 2500, 2750], [0, -14, -5])}deg` }],
+    left: sample(time.value, [0, 380, 720, 1150, 1300, 1490], [x - sx, x - sx, giftX - sx, giftX - sx, 26, 40]),
+    top: sample(time.value, [0, 160, 380, 720, 1150, 1300, 1490, 1560, 1640], [y - sy, y - sy - 5, y - sy - 5, y - sy - 24, y - sy - 24, -24, 54, 60, 54]),
+    width: sample(time.value, [380, 720, 1150, 1490], [width, 104, 104, 56]),
+    height: sample(time.value, [380, 720, 1150, 1490], [height, 88, 88, 48]),
+    transform: [
+      { rotate: `${sample(time.value, [0, 110, 240, 380, 720, 1150, 1300, 1490], [0, -1.5, 1, 0, -4, -4, -16, -5])}deg` },
+      { scale: sample(time.value, [0, 100, 240, 380], [1, 1.025, 0.99, 1]) },
+    ],
   }));
-  const snapshot = useAnimatedStyle(() => ({ opacity: sample(time.value, [650, 900], [1, 0]) }));
-  const left = useAnimatedStyle(() => ({ transform: [{ translateX: sample(time.value, [120, 420], [-width, 0]) }] }));
-  const right = useAnimatedStyle(() => ({ transform: [{ translateX: sample(time.value, [400, 690], [width, 0]) }] }));
-  const bottom = useAnimatedStyle(() => ({ transform: [{ translateY: sample(time.value, [650, 900], [height, 0]) }] }));
-  const vertical = useAnimatedStyle(() => ({ transform: [{ scaleY: sample(time.value, [1250, 1450], [0, 1]) }] }));
-  const horizontal = useAnimatedStyle(() => ({ transform: [{ scaleX: sample(time.value, [1300, 1500], [0, 1]) }] }));
-  const bowStyle = useAnimatedStyle(() => ({ transform: [{ scale: sample(time.value, [1450, 1620, 1700], [0, 1.15, 1]) }] }));
+  const snapshot = useAnimatedStyle(() => ({ opacity: sample(time.value, [320, 460], [1, 0]) }));
+  const left = useAnimatedStyle(() => ({ transform: [{ translateX: sample(time.value, [60, 250], [-width, 0]) }] }));
+  const right = useAnimatedStyle(() => ({ transform: [{ translateX: sample(time.value, [190, 370], [width, 0]) }] }));
+  const bottom = useAnimatedStyle(() => ({ transform: [{ translateY: sample(time.value, [310, 460], [height, 0]) }] }));
+  const vertical = useAnimatedStyle(() => ({ transform: [{ scaleY: sample(time.value, [580, 740], [0, 1]) }] }));
+  const horizontal = useAnimatedStyle(() => ({ transform: [{ scaleX: sample(time.value, [620, 780], [0, 1]) }] }));
+  const bowStyle = useAnimatedStyle(() => ({ transform: [{ scale: sample(time.value, [700, 810, 890], [0, 1.18, 1]) }] }));
 
   return <>
     <Animated.View style={[styles.stage, { left: sx, top: sy }, parcelStage]}>
-      <Animated.View style={[styles.parcel, parcel]}>
+      <Animated.View testID="christmas-parcel" style={[styles.parcel, parcel]}>
         <View style={styles.shell}>
           <Animated.View style={[{ width: task.width, height: task.height }, snapshot]}>{task.content}</Animated.View>
           <Animated.View style={[styles.paper, styles.paperLeft, left]}><PaperPattern /></Animated.View>
@@ -148,7 +160,7 @@ function GiftFlight({ task, viewportWidth, viewportHeight }: { task: Flight; vie
         <Animated.View style={[styles.bow, bowStyle]}><SvgXml xml={bow} width={64} height={45} /></Animated.View>
       </Animated.View>
     </Animated.View>
-    <Animated.View style={[styles.stage, { left: sx, top: sy }, vehicleStyle]}><SantaSleigh /></Animated.View>
+    <Animated.View testID="christmas-sleigh" style={[styles.stage, { left: sx, top: sy }, vehicleStyle]}><SantaSleigh /></Animated.View>
     {Array.from({ length: 12 }, (_, index) => <Sparkle key={index} time={time} index={index} x={sx} y={sy} />)}
   </>;
 }
@@ -160,12 +172,12 @@ function PaperPattern() {
 }
 
 function Sparkle({ time, index, x, y }: { time: { value: number }; index: number; x: number; y: number }) {
-  const start = 3000 + index * 35;
+  const start = 1740 + index * 22;
   const style = useAnimatedStyle(() => ({
-    opacity: interpolate(time.value, [start, start + 100, start + 600], [0, 1, 0], Extrapolation.CLAMP),
+    opacity: interpolate(time.value, [start, start + 60, start + 340], [0, 1, 0], Extrapolation.CLAMP),
     transform: [
-      { translateY: interpolate(time.value, [start, start + 600], [0, 30], Extrapolation.CLAMP) },
-      { scale: interpolate(time.value, [start, start + 100, start + 600], [0.2, 1, 0], Extrapolation.CLAMP) },
+      { translateY: interpolate(time.value, [start, start + 340], [0, 30], Extrapolation.CLAMP) },
+      { scale: interpolate(time.value, [start, start + 60, start + 340], [0.2, 1, 0], Extrapolation.CLAMP) },
     ],
   }));
   return <Animated.Text style={[styles.spark, { left: x + 25 + index * 12, top: y + 115 - index * 6 }, style]}>✦</Animated.Text>;
