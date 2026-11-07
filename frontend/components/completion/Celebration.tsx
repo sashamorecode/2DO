@@ -78,6 +78,13 @@ const CelebrationOverlay = forwardRef<CelebrationOverlayRef>((_, ref) => {
 });
 CelebrationOverlay.displayName = 'CelebrationOverlay';
 
+// Keep the shared-value read inside each mapper. A worklet helper that closes
+// over time hides it from Reanimated's mapper input discovery and freezes styles.
+function sample(elapsed: number, points: number[], values: number[]) {
+  'worklet';
+  return interpolate(elapsed, points, values, Extrapolation.CLAMP);
+}
+
 function GiftFlight({ task, viewportWidth, viewportHeight }: { task: Flight; viewportWidth: number; viewportHeight: number }) {
   const time = useSharedValue(0);
   const { x, y, width, height } = task;
@@ -89,47 +96,43 @@ function GiftFlight({ task, viewportWidth, viewportHeight }: { task: Flight; vie
     time.value = withTiming(DURATION, { duration: DURATION, easing: Easing.linear, reduceMotion: ReduceMotion.Never });
     return () => cancelAnimation(time);
   }, [time]);
-  const value = (points: number[], values: number[]) => {
-    'worklet';
-    return interpolate(time.value, points, values, Extrapolation.CLAMP);
-  };
   // The gift and sleigh share the exact departure transform once loaded.
-  const departure = () => {
+  const departure = (elapsed: number) => {
     'worklet';
     return [
-      { translateX: value([2950, 3150, 4000], [0, -14, exitX]) },
-      { translateY: value([2950, 3150, 4000], [0, 8, -300]) },
-      { rotate: `${value([2950, 3150, 4000], [0, -7, -18])}deg` },
-      { scale: value([3150, 4000], [1, 0.6]) },
+      { translateX: sample(elapsed, [2950, 3150, 4000], [0, -14, exitX]) },
+      { translateY: sample(elapsed, [2950, 3150, 4000], [0, 8, -300]) },
+      { rotate: `${sample(elapsed, [2950, 3150, 4000], [0, -7, -18])}deg` },
+      { scale: sample(elapsed, [3150, 4000], [1, 0.6]) },
     ];
   };
   const vehicleStyle = useAnimatedStyle(() => ({
-    opacity: value([1650, 1680, 3850, 4000], [0, 1, 1, 0]),
+    opacity: sample(time.value, [1650, 1680, 3850, 4000], [0, 1, 1, 0]),
     transform: [
-      { translateX: value([1650, 2250, 2950, 3150, 4000], [-sx - 260, 0, 0, -14, exitX]) },
-      { translateY: value([1650, 2250, 2750, 2850, 2950, 3150, 4000], [45, 0, 0, 7, 0, 8, -300]) },
-      { rotate: `${value([1650, 2250, 2950, 3150, 4000], [-8, 0, 0, -7, -18])}deg` },
-      { scale: value([3150, 4000], [1, 0.6]) },
+      { translateX: sample(time.value, [1650, 2250, 2950, 3150, 4000], [-sx - 260, 0, 0, -14, exitX]) },
+      { translateY: sample(time.value, [1650, 2250, 2750, 2850, 2950, 3150, 4000], [45, 0, 0, 7, 0, 8, -300]) },
+      { rotate: `${sample(time.value, [1650, 2250, 2950, 3150, 4000], [-8, 0, 0, -7, -18])}deg` },
+      { scale: sample(time.value, [3150, 4000], [1, 0.6]) },
     ],
   }));
   const parcelStage = useAnimatedStyle(() => ({
-    opacity: value([3850, 4000], [1, 0]),
-    transform: departure(),
+    opacity: sample(time.value, [3850, 4000], [1, 0]),
+    transform: departure(time.value),
   }));
   const parcel = useAnimatedStyle(() => ({
-    left: value([0, 900, 1250, 2250, 2500, 2750], [x - sx, x - sx, giftX - sx, giftX - sx, 30, 40]),
-    top: value([0, 2250, 2500, 2750, 2850, 2950], [y - sy, y - sy, -25, 54, 61, 54]),
-    width: value([900, 1250, 2250, 2750], [width, 104, 104, 56]),
-    height: value([900, 1250, 2250, 2750], [height, 88, 88, 48]),
-    transform: [{ rotate: `${value([2250, 2500, 2750], [0, -14, -5])}deg` }],
+    left: sample(time.value, [0, 900, 1250, 2250, 2500, 2750], [x - sx, x - sx, giftX - sx, giftX - sx, 30, 40]),
+    top: sample(time.value, [0, 2250, 2500, 2750, 2850, 2950], [y - sy, y - sy, -25, 54, 61, 54]),
+    width: sample(time.value, [900, 1250, 2250, 2750], [width, 104, 104, 56]),
+    height: sample(time.value, [900, 1250, 2250, 2750], [height, 88, 88, 48]),
+    transform: [{ rotate: `${sample(time.value, [2250, 2500, 2750], [0, -14, -5])}deg` }],
   }));
-  const snapshot = useAnimatedStyle(() => ({ opacity: value([650, 900], [1, 0]) }));
-  const left = useAnimatedStyle(() => ({ transform: [{ translateX: value([120, 420], [-width, 0]) }] }));
-  const right = useAnimatedStyle(() => ({ transform: [{ translateX: value([400, 690], [width, 0]) }] }));
-  const bottom = useAnimatedStyle(() => ({ transform: [{ translateY: value([650, 900], [height, 0]) }] }));
-  const vertical = useAnimatedStyle(() => ({ transform: [{ scaleY: value([1250, 1450], [0, 1]) }] }));
-  const horizontal = useAnimatedStyle(() => ({ transform: [{ scaleX: value([1300, 1500], [0, 1]) }] }));
-  const bowStyle = useAnimatedStyle(() => ({ transform: [{ scale: value([1450, 1620, 1700], [0, 1.15, 1]) }] }));
+  const snapshot = useAnimatedStyle(() => ({ opacity: sample(time.value, [650, 900], [1, 0]) }));
+  const left = useAnimatedStyle(() => ({ transform: [{ translateX: sample(time.value, [120, 420], [-width, 0]) }] }));
+  const right = useAnimatedStyle(() => ({ transform: [{ translateX: sample(time.value, [400, 690], [width, 0]) }] }));
+  const bottom = useAnimatedStyle(() => ({ transform: [{ translateY: sample(time.value, [650, 900], [height, 0]) }] }));
+  const vertical = useAnimatedStyle(() => ({ transform: [{ scaleY: sample(time.value, [1250, 1450], [0, 1]) }] }));
+  const horizontal = useAnimatedStyle(() => ({ transform: [{ scaleX: sample(time.value, [1300, 1500], [0, 1]) }] }));
+  const bowStyle = useAnimatedStyle(() => ({ transform: [{ scale: sample(time.value, [1450, 1620, 1700], [0, 1.15, 1]) }] }));
 
   return <>
     <Animated.View style={[styles.stage, { left: sx, top: sy }, parcelStage]}>

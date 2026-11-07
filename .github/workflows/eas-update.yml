@@ -38,6 +38,13 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Check frontend and completion animation
+        working-directory: frontend
+        run: |
+          npx tsc --noEmit
+          node scripts/test-task-completion.cjs
+          node scripts/test-celebration-clock.cjs
+
       - name: Validate frontend secrets
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}

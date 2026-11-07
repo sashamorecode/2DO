@@ -1,0 +1,47 @@
+const assert=require('node:assert/strict');
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+(async()=>{
+ const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
+ const errors=[];
+ const context=await browser.newContext({viewport:{width:390,height:844}});
+ const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
+ const url=process.env.PREVIEW_URL || 'https://ubuntu.taila64df0.ts.net/christmas-wrap/';
+ await page.goto(url,{waitUntil:'networkidle'});
+ await page.getByRole('button',{name:'Complete Pick up Christmas gifts',exact:true}).click();
+ const sleigh=page.locator('svg[viewBox="0 0 230 150"]').locator('..');
+ await page.waitForTimeout(1750);
+ const a=await sleigh.boundingBox();
+ await page.waitForTimeout(250);
+ const b=await sleigh.boundingBox();
+ assert.ok(b.x>a.x+10,'sleigh moves across successive animation frames');
+ await page.waitForTimeout(2400);
+ assert.equal(await sleigh.count(),0,'overlay cleans up after flight');
+ await page.getByRole('button',{name:'Replay',exact:true}).click();
+ await page.waitForTimeout(200);
+ for(const name of ['Pick up Christmas gifts','Send the Christmas cards','Make time for a hot chocolate']){
+  await page.getByRole('button',{name:'Complete '+name,exact:true}).click();
+ }
+ await page.waitForTimeout(4500);
+ assert.ok((await page.locator('body').innerText()).includes('Done · 3'));
+ assert.equal(await sleigh.count(),0);
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await page.getByRole('button',{name:'Replay',exact:true}).click();
+ await page.waitForTimeout(200);
+ await page.getByRole('button',{name:'Complete Pick up Christmas gifts',exact:true}).click();
+ await page.waitForTimeout(300);
+ assert.equal(await sleigh.count(),0,'no decorative flight under reduced motion');
+ assert.ok((await page.locator('body').innerText()).includes('Done · 1'));
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ await page.setViewportSize({width:1280,height:900});
+ await page.getByRole('button',{name:'Replay',exact:true}).click();
+ await page.waitForTimeout(200);
+ await page.getByRole('button',{name:'Complete Make time for a hot chocolate',exact:true}).click();
+ await page.waitForTimeout(2750);
+ const desktop=await sleigh.boundingBox();
+ assert.ok(desktop.x>350&&desktop.x+desktop.width<1000,'pickup stays aligned with centered desktop list');
+ await page.waitForTimeout(1600);
+ assert.equal(await sleigh.count(),0);
+ assert.deepEqual(errors,[]);
+ console.log('PASS: continuous motion, cleanup, three rapid completions, reduced motion, centered desktop pickup; no browser errors.');
+ await browser.close();
+})();
