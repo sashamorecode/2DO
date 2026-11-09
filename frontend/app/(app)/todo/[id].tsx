@@ -5,9 +5,10 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Users, WifiOff } from 'lucide-react-native';
 import { colors } from '../../../constants/colors';
+import { LoadState } from '../../../components/ui/LoadState';
 import { Screen } from '../../../components/ui/Screen';
 import { TodoForm } from '../../../components/todo/TodoForm';
-import { todosApi, CreateTodoInput } from '../../../services/todos.api';
+import { todosApi, CreateTodoInput, Todo } from '../../../services/todos.api';
 import { hasMeaningfulTodoTime, parseTodoDateInTimeZone } from '../../../services/timezone';
 import { useAuthStore } from '../../../store/authStore';
 import { useOfflineTodoOps } from '../../../services/todos.api.offline';
@@ -25,10 +26,13 @@ export default function EditTodoScreen() {
   // Set before deleting so the form does not try to re-save the task.
   const suspendAutoSaveRef = useRef(false);
 
-  const { data: todo, isLoading } = useQuery({
+  const { data: todo, isLoading, refetch } = useQuery({
     queryKey: ['todo', id],
     queryFn: () => todosApi.get(id!),
     enabled: !!id,
+    initialData: () => [...(qc.getQueryData<Todo[]>(['todos', 'pending']) ?? []), ...(qc.getQueryData<Todo[]>(['todos', 'completed']) ?? [])].find((item) => item.id === id),
+    // Cached list data is usable offline, but refresh detail when connected.
+    initialDataUpdatedAt: 0,
   });
 
   const deleteMutation = useMutation({
@@ -70,10 +74,22 @@ export default function EditTodoScreen() {
     ]);
   }
 
-  if (isLoading || !todo) {
+  if (isLoading) {
     return (
       <Screen style={styles.centered}>
         <ActivityIndicator color={colors.accent} />
+      </Screen>
+    );
+  }
+
+  if (!todo) {
+    return (
+      <Screen>
+        <LoadState
+          title={isOnline ? "Couldn't load this task" : "This task isn't available offline"}
+          description="Your task has not been changed. Try loading it again when connected."
+          onRetry={isOnline ? () => { void refetch(); } : undefined}
+        />
       </Screen>
     );
   }
@@ -88,18 +104,20 @@ export default function EditTodoScreen() {
           </View>
         ) : null}
         <TouchableOpacity
+          accessibilityRole="button"
           onPress={() => router.push(`/(app)/body-double/request?todoId=${id}`)}
           style={styles.bdBtn}
         >
           <Users size={16} color={colors.accentLight} strokeWidth={2.2} />
           <Text style={styles.bdText}>Request Body Double</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={confirmDelete} style={styles.deleteBtn}>
+        <TouchableOpacity accessibilityRole="button" onPress={confirmDelete} style={styles.deleteBtn}>
           <Text style={styles.deleteText}>Delete task</Text>
         </TouchableOpacity>
       </View>
       <TodoForm
         key={id}
+        revision={todo.updated_at}
         initialValues={{
           title: todo.title,
           description: todo.description,
@@ -143,6 +161,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   bdBtn: {
+    minHeight: 44,
+    maxWidth: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -153,8 +173,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.accent + '44',
   },
-  bdText: { color: colors.accentLight, fontWeight: '700', fontSize: 13 },
+  bdText: { flexShrink: 1, color: colors.accentLight, fontWeight: '700', fontSize: 13 },
   deleteBtn: {
+    minHeight: 44,
+    justifyContent: 'center',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,

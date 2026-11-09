@@ -28,6 +28,7 @@ import { tagsApi } from '../../services/tags.api';
 import { useOfflineTagOps } from '../../services/tags.api.offline';
 import { useOfflineStore } from '../../store/offlineStore';
 
+const TAG_COLOR_NAMES = ['Rose', 'Gold', 'Teal', 'Blue', 'Lavender', 'Orange', 'Sky blue', 'Green'];
 const TAG_COLOR_OPTIONS = ['#E07A91', '#E5B868', '#88B0A8', '#77A8D9', '#B48EFA', '#F38C63', '#7EC8E3', '#96D36D'];
 
 let nextStepKey = 0;
@@ -65,6 +66,7 @@ export interface TodoFormInitial {
 
 interface Props {
   initialValues?: TodoFormInitial;
+  revision?: string;
   onSubmit: (data: CreateTodoInput) => Promise<void>;
   // When provided, the form is saved automatically as soon as it loses focus
   // (back button, swipe back, tab switch, or opening another screen), as long
@@ -92,8 +94,28 @@ const EMPTY_FORM: FormData = {
   isPrivate: false,
 };
 
+function formValues(initialValues?: TodoFormInitial): FormData {
+  return {
+    title: initialValues?.title ?? '',
+    description: initialValues?.description ?? '',
+    priority: initialValues?.priority ?? 'B',
+    tagIds: initialValues?.tagIds ?? [],
+    deadline: initialValues?.deadline ?? null,
+    deadlineHasTime: initialValues?.deadlineHasTime ?? false,
+    plannedAt: initialValues?.plannedAt ?? null,
+    plannedHasTime: initialValues?.plannedHasTime ?? false,
+    steps: (initialValues?.steps ?? []).map(({ name, completed }) => ({
+      key: createStepKey(),
+      name,
+      completed,
+    })),
+    isPrivate: initialValues?.isPrivate ?? false,
+  };
+}
+
 export function TodoForm({
   initialValues,
+  revision,
   onSubmit,
   onAutoSave,
   submitLabel = 'Save',
@@ -106,6 +128,7 @@ export function TodoForm({
   const queryClient = useQueryClient();
   const refreshPending = useOfflineStore((s) => s.refreshPending);
   const { createTag: createTagOffline } = useOfflineTagOps(queryClient, userId);
+  const [saving, setSaving] = useState(false);
   const [showTagCreator, setShowTagCreator] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState(TAG_COLOR_OPTIONS[0]);
@@ -130,25 +153,10 @@ export function TodoForm({
     setValue,
     getValues,
     reset,
-    formState: { errors, isDirty },
+    formState: { errors, isDirty, isSubmitting, dirtyFields },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: {
-      title: initialValues?.title ?? '',
-      description: initialValues?.description ?? '',
-      priority: initialValues?.priority ?? 'B',
-      tagIds: initialValues?.tagIds ?? [],
-      deadline: initialValues?.deadline ?? null,
-      deadlineHasTime: initialValues?.deadlineHasTime ?? false,
-      plannedAt: initialValues?.plannedAt ?? null,
-      plannedHasTime: initialValues?.plannedHasTime ?? false,
-      steps: (initialValues?.steps ?? []).map(({ name, completed }) => ({
-        key: createStepKey(),
-        name,
-        completed,
-      })),
-      isPrivate: initialValues?.isPrivate ?? false,
-    },
+    defaultValues: formValues(initialValues),
   });
 
   function buildInput(data: FormData): CreateTodoInput {
@@ -192,8 +200,24 @@ export function TodoForm({
   // True once a save (manual or automatic) has been kicked off so the blur
   // handler does not fire a second save.
   const savedRef = useRef(false);
+  const pendingTagRef = useRef<Promise<void> | null>(null);
+  const appliedRevision = useRef(revision);
+
+  useEffect(() => {
+    if (revision === appliedRevision.current || savedRef.current || saving) return;
+    appliedRevision.current = revision;
+    const current = getValues();
+    const dirty = new Set(Object.keys(dirtyFields) as Array<keyof FormData>);
+    for (const pair of [['deadline', 'deadlineHasTime'], ['plannedAt', 'plannedHasTime']] as const) {
+      if (pair.some((field) => dirty.has(field))) pair.forEach((field) => dirty.add(field));
+    }
+    // Refresh untouched fields, retaining whole edited step/tag groups.
+    reset(formValues(initialValues));
+    for (const field of dirty) setValue(field, current[field], { shouldDirty: true });
+  }, [revision, initialValues, saving, dirtyFields, getValues, reset, setValue]);
 
   const finishSave = useCallback(() => {
+    isDirtyRef.current = false;
     if (resetOnSave === 'empty') {
       reset(EMPTY_FORM);
     } else {
@@ -203,30 +227,35 @@ export function TodoForm({
   }, [reset, getValues, resetOnSave]);
 
   async function submit(data: FormData) {
+    if (savedRef.current) return;
     savedRef.current = true;
+    setSaving(true);
     try {
       await onSubmit(buildInput(data));
       finishSave();
     } catch (error) {
       savedRef.current = false;
-      throw error;
+      AppDialog.alert('Could not save task', 'Your changes are still here. Please try again.');
+    } finally {
+      setSaving(false);
     }
   }
 
   useFocusEffect(
     useCallback(() => {
-      savedRef.current = false;
       if (suspendAutoSaveRef) suspendAutoSaveRef.current = false;
       return () => {
         const save = onAutoSaveRef.current;
         if (!save) return;
         if (savedRef.current) return;
         if (suspendAutoSaveRef?.current) return;
-        if (!isDirtyRef.current) return;
+        if (!isDirtyRef.current && !pendingTagRef.current) return;
         const title = (getValues('title') ?? '').trim();
         if (!title) return;
         savedRef.current = true;
-        handleSubmit(
+        setSaving(true);
+        const pendingTag = pendingTagRef.current;
+        Promise.resolve(pendingTag).then(() => handleSubmit(
           async (data) => {
             try {
               await save(buildInputRef.current(data));
@@ -237,14 +266,19 @@ export function TodoForm({
                 'Could not save task',
                 error?.response?.data?.error ?? 'Please try again.'
               );
+            } finally {
+              setSaving(false);
             }
           },
           () => {
             savedRef.current = false;
+            setSaving(false);
             AppDialog.alert('Could not save task', 'Please fix the highlighted fields.');
           }
-        )().catch(() => {
+        )()).catch(() => {
           savedRef.current = false;
+          setSaving(false);
+          AppDialog.alert('Task not saved', 'Tag creation did not finish. Return to the task and try again.');
         });
       };
     }, [handleSubmit, getValues, finishSave, suspendAutoSaveRef])
@@ -271,21 +305,29 @@ export function TodoForm({
   }
 
   async function createTag() {
+    if (pendingTagRef.current || savedRef.current) return;
     const name = newTagName.trim();
     if (!name) {
       AppDialog.alert('Tag name required', 'Please enter a name for the new tag.');
       return;
     }
 
-    try {
+    const operation = (async () => {
       const created = await createTagMutation.mutateAsync({ name, color: newTagColor });
-      if (!selectedTagIds.includes(created.id)) {
-        setValue('tagIds', [...selectedTagIds, created.id], { shouldDirty: true });
+      const latestTags = getValues('tagIds');
+      if (!latestTags.includes(created.id)) {
+        setValue('tagIds', [...latestTags, created.id], { shouldDirty: true });
       }
       setNewTagName('');
       setShowTagCreator(false);
+    })();
+    pendingTagRef.current = operation;
+    try {
+      await operation;
     } catch (error: any) {
       AppDialog.alert('Could not create tag', error?.response?.data?.error ?? 'Try a different name.');
+    } finally {
+      pendingTagRef.current = null;
     }
   }
 
@@ -294,8 +336,10 @@ export function TodoForm({
       <Controller
         control={control}
         name="title"
-        render={({ field: { onChange, value } }) => (
+        render={({ field: { onChange, value, ref } }) => (
           <Input
+            ref={ref}
+            editable={!saving}
             label="Title"
             value={value}
             onChangeText={onChange}
@@ -308,8 +352,10 @@ export function TodoForm({
       <Controller
         control={control}
         name="description"
-        render={({ field: { onChange, value } }) => (
+        render={({ field: { onChange, value, ref } }) => (
           <Input
+            ref={ref}
+            editable={!saving}
             label="Description"
             value={value}
             onChangeText={onChange}
@@ -331,14 +377,17 @@ export function TodoForm({
               const selected = value === p;
               return (
                 <TouchableOpacity
+                  disabled={saving}
                   key={p}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: selected }}
                   style={[
                     styles.priorityBtn,
                     { borderColor: color, backgroundColor: selected ? color + '33' : 'transparent' },
                   ]}
                   onPress={() => onChange(p)}
                 >
-                  <Text style={[styles.priorityLabel, { color }]}>{label}</Text>
+                  <Text style={[styles.priorityLabel, { color }]}>{selected ? `✓ ${label}` : label}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -357,7 +406,10 @@ export function TodoForm({
                 const selected = selectedTagIds.includes(tag.id);
                 return (
                   <TouchableOpacity
+                    disabled={saving}
                     key={tag.id}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: selected }}
                     onPress={() => toggleTag(tag.id)}
                     style={[
                       styles.tagChoice,
@@ -369,7 +421,7 @@ export function TodoForm({
                   >
                     <View style={[styles.tagDot, { backgroundColor: tag.color }]} />
                     <Text style={[styles.tagChoiceText, { color: selected ? tag.color : colors.textMuted }]}>
-                      {tag.name}
+                      {selected ? `✓ ${tag.name}` : tag.name}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -378,7 +430,7 @@ export function TodoForm({
               <Text style={styles.emptyTagText}>No tags yet.</Text>
             )}
 
-            <TouchableOpacity style={styles.tagCreateToggle} onPress={() => setShowTagCreator((v) => !v)}>
+            <TouchableOpacity disabled={saving} accessibilityRole="button" accessibilityState={{ expanded: showTagCreator }} style={styles.tagCreateToggle} onPress={() => setShowTagCreator((v) => !v)}>
               <Text style={styles.tagCreateToggleText}>{showTagCreator ? 'Cancel' : 'Create tag'}</Text>
             </TouchableOpacity>
           </View>
@@ -387,6 +439,7 @@ export function TodoForm({
         {showTagCreator ? (
           <View style={styles.tagCreatorCard}>
             <Input
+              editable={!saving}
               label="Tag name"
               value={newTagName}
               onChangeText={setNewTagName}
@@ -394,23 +447,28 @@ export function TodoForm({
             />
             <Text style={styles.smallLabel}>Color</Text>
             <View style={styles.colorRow}>
-              {TAG_COLOR_OPTIONS.map((color) => {
+              {TAG_COLOR_OPTIONS.map((color, index) => {
                 const active = color === newTagColor;
                 return (
                   <TouchableOpacity
+                    disabled={saving}
                     key={color}
                     onPress={() => setNewTagColor(color)}
-                    style={[
-                      styles.colorSwatch,
-                      { backgroundColor: color, borderColor: active ? colors.text : colors.border },
-                      active && styles.colorSwatchActive,
-                    ]}
-                  />
+                    accessibilityRole="radio"
+                    accessibilityLabel={TAG_COLOR_NAMES[index]}
+                    accessibilityState={{ checked: active }}
+                    style={styles.colorTarget}
+                  >
+                    <View style={[styles.colorSwatch, { backgroundColor: color, borderColor: active ? colors.text : colors.border }]}>
+                      {active ? <Check size={16} color={colors.onAccent} /> : null}
+                    </View>
+                  </TouchableOpacity>
                 );
               })}
             </View>
             <Button
               title="Add Tag"
+              disabled={saving}
               onPress={createTag}
               loading={createTagMutation.isPending}
               style={styles.addTagBtn}
@@ -420,6 +478,7 @@ export function TodoForm({
       </View>
 
       <DateTimeField
+        disabled={saving}
         label="Due date"
         date={watch('deadline')}
         hasTime={watch('deadlineHasTime')}
@@ -428,6 +487,7 @@ export function TodoForm({
       />
 
       <DateTimeField
+        disabled={saving}
         label="Do date"
         date={watch('plannedAt')}
         hasTime={watch('plannedHasTime')}
@@ -441,6 +501,7 @@ export function TodoForm({
           {steps.map((step) => (
             <View key={step.key} style={styles.stepRow}>
               <TouchableOpacity
+                disabled={saving}
                 accessibilityRole="checkbox"
                 accessibilityLabel={step.name.trim() || 'Step'}
                 accessibilityState={{ checked: step.completed }}
@@ -452,6 +513,7 @@ export function TodoForm({
                 </View>
               </TouchableOpacity>
               <TextInput
+                editable={!saving}
                 accessibilityLabel="Step name"
                 value={step.name}
                 onChangeText={(name) => updateStep(step.key, { name })}
@@ -460,6 +522,7 @@ export function TodoForm({
                 style={[styles.stepInput, step.completed && styles.stepInputCompleted]}
               />
               <TouchableOpacity
+                disabled={saving}
                 accessibilityRole="button"
                 accessibilityLabel={`Delete step${step.name.trim() ? `: ${step.name.trim()}` : ''}`}
                 style={styles.stepDelete}
@@ -474,6 +537,7 @@ export function TodoForm({
             </View>
           ))}
           <TouchableOpacity
+            disabled={saving}
             accessibilityRole="button"
             style={styles.addStepBtn}
             onPress={() => setValue(
@@ -501,6 +565,9 @@ export function TodoForm({
               </Text>
             </View>
             <Switch
+              disabled={saving}
+              accessibilityLabel="Private task"
+              accessibilityHint="Hides this task from friends and turns off friend notifications for it."
               value={value}
               onValueChange={onChange}
               trackColor={{ false: colors.border, true: colors.accent }}
@@ -511,8 +578,9 @@ export function TodoForm({
 
       <Button
         title={submitLabel}
+        disabled={createTagMutation.isPending}
         onPress={handleSubmit(submit)}
-        loading={loading}
+        loading={loading || saving || isSubmitting}
         style={styles.submitBtn}
       />
     </KeyboardAwareScrollView>
@@ -524,6 +592,8 @@ const styles = StyleSheet.create({
   label: { color: colors.textMuted, fontSize: 13, fontWeight: '600', marginBottom: 8 },
   priorityRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
   priorityBtn: {
+    minHeight: 44,
+    justifyContent: 'center',
     flex: 1,
     borderWidth: 2,
     borderRadius: 10,
@@ -531,7 +601,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 2,
   },
-  priorityLabel: { fontWeight: '900', fontSize: 14 },
+  priorityLabel: { fontWeight: '700', fontSize: 14, textAlign: 'center' },
   priorityDesc: { fontSize: 10, textAlign: 'center' },
   tagsPanel: {
     marginBottom: 16,
@@ -544,6 +614,9 @@ const styles = StyleSheet.create({
   },
   tagsWrap: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   tagChoice: {
+    maxWidth: '100%',
+    minHeight: 44,
+    justifyContent: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -558,6 +631,8 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   tagChoiceText: {
+    flexShrink: 1,
+    minWidth: 0,
     fontSize: 12,
     fontWeight: '700',
   },
@@ -567,6 +642,8 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   tagCreateToggle: {
+    minHeight: 44,
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: colors.accentMuted,
     borderRadius: 999,
@@ -588,7 +665,10 @@ const styles = StyleSheet.create({
   },
   smallLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 8 },
   colorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 12 },
+  colorTarget: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   colorSwatch: {
+    alignItems: 'center',
+    justifyContent: 'center',
     width: 26,
     height: 26,
     borderRadius: 13,
@@ -601,7 +681,7 @@ const styles = StyleSheet.create({
   stepsSection: { marginBottom: 18 },
   stepsList: { gap: 8 },
   stepRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  stepToggle: { padding: 8 },
+  stepToggle: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   stepCheckbox: {
     width: 20,
     height: 20,
@@ -626,8 +706,10 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   stepInputCompleted: { textDecorationLine: 'line-through', color: colors.textDim },
-  stepDelete: { padding: 10 },
+  stepDelete: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   addStepBtn: {
+    minHeight: 44,
+    justifyContent: 'center',
     alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',

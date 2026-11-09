@@ -1,9 +1,10 @@
 import { AppDialog } from '../../services/appDialog';
-import React from 'react';
-import { View, Text, StyleSheet, } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { WifiOff } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
+import { LoadState } from '../../components/ui/LoadState';
 import { Screen } from '../../components/ui/Screen';
 import { KeyboardAwareScrollView } from '../../components/ui/KeyboardAwareScrollView';
 import { FriendCard } from '../../components/friends/FriendCard';
@@ -14,18 +15,23 @@ import { useOfflineStore } from '../../store/offlineStore';
 
 export default function SocialScreen() {
   const qc = useQueryClient();
+  const pendingRemovalIds = useRef(new Set<string>());
+  const [removingIds, setRemovingIds] = useState(new Set<string>());
   const isOnline = useOfflineStore((s) => s.isOnline);
 
-  const { data: friends = [] } = useQuery({
+  const friendsQuery = useQuery({
     queryKey: ['friends'],
     queryFn: friendsApi.list,
     enabled: isOnline,
   });
-  const { data: incoming = [] } = useQuery({
+  const incomingQuery = useQuery({
     queryKey: ['friends-incoming'],
     queryFn: friendsApi.incoming,
     enabled: isOnline,
   });
+
+  const friends = friendsQuery.data ?? [];
+  const incoming = incomingQuery.data ?? [];
 
   const acceptMutation = useMutation({
     mutationFn: friendsApi.accept,
@@ -37,8 +43,24 @@ export default function SocialScreen() {
   });
   const removeMutation = useMutation({
     mutationFn: friendsApi.remove,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['friends'] }); qc.invalidateQueries({ queryKey: ['feed'] }); },
+    onError: () => AppDialog.alert("Couldn't remove friend", 'Please try again when connected.'),
+    onSuccess: (_data, id) => {
+      qc.setQueryData<FriendItem[]>(['friends'], (old) => old?.filter((friend) => friend.friendship_id !== id));
+      qc.invalidateQueries({ queryKey: ['friends'] });
+      qc.invalidateQueries({ queryKey: ['feed'] });
+    },
+    onSettled: (_data, _error, id) => {
+      pendingRemovalIds.current.delete(id);
+      setRemovingIds(new Set(pendingRemovalIds.current));
+    },
   });
+  function removeFriend(id: string) {
+    if (!isOnline || pendingRemovalIds.current.has(id)) return;
+    pendingRemovalIds.current.add(id);
+    setRemovingIds(new Set(pendingRemovalIds.current));
+    removeMutation.mutate(id);
+  }
+
   const sendRequestMutation = useMutation({
     mutationFn: friendsApi.sendRequest,
     onError: (e: any) => AppDialog.alert('Error', e?.response?.data?.error ?? 'Could not send request'),
@@ -57,8 +79,12 @@ export default function SocialScreen() {
         ) : null}
 
         <Section title="Add Friends">
-          <FriendSearch onSendRequest={(id) => sendRequestMutation.mutate(id)} />
+          <FriendSearch disabled={!isOnline} onSendRequest={(id) => sendRequestMutation.mutateAsync(id)} />
         </Section>
+
+        {incomingQuery.isError ? (
+          <LoadState title="Couldn't load friend requests" onRetry={isOnline ? () => { void incomingQuery.refetch(); } : undefined} />
+        ) : incomingQuery.isLoading ? <LoadState title="Loading friend requests…" loading /> : null}
 
         {incoming.length > 0 ? (
           <Section title={`Friend Requests (${incoming.length})`}>
@@ -66,30 +92,36 @@ export default function SocialScreen() {
               <IncomingRequestRow
                 key={request.id}
                 item={request}
-                onAccept={() => acceptMutation.mutate(request.id)}
-                onDecline={() => declineMutation.mutate(request.id)}
+                disabled={!isOnline}
+                onAccept={() => acceptMutation.mutateAsync(request.id)}
+                onDecline={() => declineMutation.mutateAsync(request.id)}
               />
             ))}
           </Section>
         ) : null}
 
-        <Section title={`Friends (${friends.length})`}>
+        <Section title={friendsQuery.data ? `Friends (${friends.length})` : 'Friends'}>
+          {friendsQuery.isError ? <LoadState title="Couldn't refresh friends" description={friendsQuery.data ? "Showing your saved friends." : undefined} onRetry={isOnline ? () => { void friendsQuery.refetch(); } : undefined} /> : null}
           {friends.length > 0 ? (
             friends.map((friend) => (
               <FriendRow
                 key={friend.friendship_id}
                 item={friend}
+                disabled={!isOnline}
+                loading={removingIds.has(friend.friendship_id)}
                 onRemove={() => {
                   AppDialog.alert('Remove Friend', `Remove ${friend.user.username}?`, [
                     { text: 'Cancel', style: 'cancel' },
-                    { text: 'Remove', style: 'destructive', onPress: () => removeMutation.mutate(friend.friendship_id) },
+                    { text: 'Remove', style: 'destructive', onPress: () => removeFriend(friend.friendship_id) },
                   ]);
                 }}
               />
             ))
-          ) : (
-            <Text style={styles.emptyText}>No friends yet — search above to add some.</Text>
-          )}
+          ) : friendsQuery.isLoading ? (
+            <LoadState title="Loading friends…" loading />
+          ) : !friendsQuery.isError ? (
+            <Text style={styles.emptyText}>{!isOnline && !friendsQuery.data ? 'Connect to load your friends.' : 'No friends yet — search above to add some.'}</Text>
+          ) : null}
         </Section>
       </KeyboardAwareScrollView>
     </Screen>
@@ -109,22 +141,25 @@ function IncomingRequestRow({
   item,
   onAccept,
   onDecline,
+  disabled,
 }: {
   item: FriendRequest;
-  onAccept: () => void;
-  onDecline: () => void;
+  onAccept: () => Promise<unknown>;
+  onDecline: () => Promise<unknown>;
+  disabled?: boolean;
 }) {
   return (
     <FriendRequestCard
       username={item.requester?.username ?? ''}
+      disabled={disabled}
       onAccept={onAccept}
       onDecline={onDecline}
     />
   );
 }
 
-function FriendRow({ item, onRemove }: { item: FriendItem; onRemove: () => void }) {
-  return <FriendCard username={item.user.username} onRemove={onRemove} />;
+function FriendRow({ item, onRemove, disabled, loading }: { item: FriendItem; onRemove: () => void; disabled?: boolean; loading?: boolean }) {
+  return <FriendCard username={item.user.username} onRemove={onRemove} disabled={disabled} loading={loading} />;
 }
 
 const styles = StyleSheet.create({

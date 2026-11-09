@@ -26,8 +26,8 @@ export function FinishedRow({ todo, onReopen, onPress, ownerLabel }: Props) {
       })
     : null;
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85} disabled={!onPress}>
-      <View style={styles.left}>
+    <View style={styles.card}>
+      <TouchableOpacity accessibilityRole={onPress ? "button" : undefined} accessibilityHint="Opens task details" style={styles.left} onPress={onPress} activeOpacity={0.85} disabled={!onPress}>
         <CheckCircle2 size={22} color={colors.success} strokeWidth={2.2} />
         <View style={styles.content}>
           <View style={styles.titleRow}>
@@ -49,23 +49,23 @@ export function FinishedRow({ todo, onReopen, onPress, ownerLabel }: Props) {
             )}
           </View>
         </View>
-      </View>
+        {onPress ? <ChevronRight size={20} color={colors.textDim} strokeWidth={2.2} /> : null}
+      </TouchableOpacity>
       {(onReopen || onPress) ? (
         <View style={styles.actions}>
           {onReopen ? (
             <TouchableOpacity
               onPress={onReopen}
-              hitSlop={8}
+              accessibilityRole="button"
               style={styles.reopenBtn}
-              accessibilityLabel="Reactivate task"
+              accessibilityLabel={`Reactivate task: ${todo.title}`}
             >
               <RotateCcw size={16} color={colors.accentLight} strokeWidth={2.4} />
             </TouchableOpacity>
           ) : null}
-          {onPress ? <ChevronRight size={20} color={colors.textDim} strokeWidth={2.2} /> : null}
         </View>
       ) : null}
-    </TouchableOpacity>
+    </View>
   );
 }
 
@@ -104,9 +104,9 @@ const styles = StyleSheet.create({
   finishedAt: { color: colors.textDim, fontSize: 12, fontWeight: '500' },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 8 },
   reopenBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.surfaceAlt,
     borderWidth: 1.5,
     borderColor: colors.border,

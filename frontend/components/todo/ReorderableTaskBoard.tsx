@@ -252,5 +252,5 @@ const styles = StyleSheet.create({
   title: { fontSize: 13, fontWeight: '700', letterSpacing: 0.2 },
   count: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
   dragging: { zIndex: 2, opacity: 0.94, elevation: 8, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 8 },
-  handle: { width: 32, minHeight: 44, justifyContent: 'center', alignItems: 'center' },
+  handle: { width: 44, minHeight: 44, justifyContent: 'center', alignItems: 'center' },
 });

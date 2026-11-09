@@ -22,6 +22,7 @@ export function PriorityBadge({ priority }: { priority: Priority }) {
 
 const styles = StyleSheet.create({
   badge: {
+    maxWidth: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -31,6 +32,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignSelf: 'flex-start',
   },
-  label: { fontWeight: '800', fontSize: 12 },
+  label: { flexShrink: 1, minWidth: 0, fontWeight: '800', fontSize: 12 },
   desc: { fontSize: 11, fontWeight: '500' },
 });

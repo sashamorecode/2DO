@@ -33,6 +33,7 @@ export function DeadlineBadge({ deadline }: { deadline: string | null }) {
 
 const styles = StyleSheet.create({
   chip: {
+    maxWidth: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -43,6 +44,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'transparent',
   },
-  text: { fontSize: 12, fontWeight: '700' },
+  text: { flexShrink: 1, minWidth: 0, fontSize: 12, fontWeight: '700' },
   textOverdue: { fontWeight: '800', letterSpacing: 0.2 },
 });

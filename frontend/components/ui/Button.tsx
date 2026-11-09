@@ -34,6 +34,9 @@ export function Button({ title, onPress, variant = 'primary', loading, disabled,
 
   return (
     <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: !!(disabled || loading), busy: !!loading }}
       onPress={onPress}
       disabled={disabled || loading}
       style={[
@@ -58,6 +61,7 @@ export function Button({ title, onPress, variant = 'primary', loading, disabled,
 
 const styles = StyleSheet.create({
   btn: {
+    minHeight: 48,
     paddingVertical: 14,
     paddingHorizontal: 24,
     borderRadius: 14,

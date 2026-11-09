@@ -170,8 +170,9 @@ export default function InboxScreen() {
               <IncomingRequestRow
                 key={request.id}
                 item={request}
-                onAccept={() => acceptFriendMutation.mutate(request.id)}
-                onDecline={() => declineFriendMutation.mutate(request.id)}
+                disabled={!isOnline}
+                onAccept={() => acceptFriendMutation.mutateAsync(request.id)}
+                onDecline={() => declineFriendMutation.mutateAsync(request.id)}
               />
             ))}
           </Section>
@@ -194,14 +195,17 @@ function IncomingRequestRow({
   item,
   onAccept,
   onDecline,
+  disabled,
 }: {
   item: FriendRequest;
-  onAccept: () => void;
-  onDecline: () => void;
+  onAccept: () => Promise<unknown>;
+  onDecline: () => Promise<unknown>;
+  disabled?: boolean;
 }) {
   return (
     <FriendRequestCard
       username={item.requester?.username ?? ''}
+      disabled={disabled}
       onAccept={onAccept}
       onDecline={onDecline}
     />

@@ -1,7 +1,7 @@
 import Animated from 'react-native-reanimated';
 import { completionLayout, completionExit, completionEnter, countEnter } from '../../components/completion/CompletionLayout';
 import { AppDialog } from '../../services/appDialog';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,10 @@ import {
   TouchableOpacity,
   RefreshControl,
   ScrollView,
+  useWindowDimensions,
+  AccessibilityInfo,
+  findNodeHandle,
+  Platform,
 } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
@@ -25,6 +29,8 @@ import {
 } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
 import { ChristmasArtwork } from '../../components/theme/ChristmasArtwork';
+import { LoadState } from '../../components/ui/LoadState';
+import { Button } from '../../components/ui/Button';
 import { Screen } from '../../components/ui/Screen';
 import { TodoCard } from '../../components/todo/TodoCard';
 import { FinishedRow } from '../../components/todo/FinishedRow';
@@ -67,6 +73,8 @@ interface CalendarSection {
 }
 
 export default function TasksScreen() {
+  const { width, height, fontScale } = useWindowDimensions();
+  const compactHeader = width < 380 || height < 700 || fontScale > 1.2;
   const queryClient = useQueryClient();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
@@ -78,6 +86,21 @@ export default function TasksScreen() {
 
   // Offline-aware todo operations (local-first: cache updated before API call).
   const offlineOps = useOfflineTodoOps(queryClient, user?.id ?? '');
+
+  const taskHeadingRef = useRef<View>(null);
+  const [actionMessage, setActionMessage] = useState('');
+  function announceTaskAction(message: string) {
+    setActionMessage(message);
+    requestAnimationFrame(() => {
+      if (Platform.OS === 'web') {
+        (taskHeadingRef.current as unknown as { focus?: () => void })?.focus?.();
+      } else {
+        const target = findNodeHandle(taskHeadingRef.current);
+        if (target) AccessibilityInfo.setAccessibilityFocus(target);
+        AccessibilityInfo.announceForAccessibilityWithOptions(message, { queue: true });
+      }
+    });
+  }
 
   const [primaryTab, setPrimaryTab] = useState<PrimaryTab>('mine');
   const [secondaryTab, setSecondaryTab] = useState<SecondaryTab>('active');
@@ -120,13 +143,24 @@ export default function TasksScreen() {
   const bodyDoubleSessionsQuery = useBodyDoubleSessions(secondaryTab === 'calendar');
 
   const completeMutation = useMutation({
-    mutationFn: (id: string) => offlineOps.completeTodo(id),
-    // Optimistic removal is handled inside completeTodo (local-first).
+    mutationFn: (id: string) => {
+      const todo = queryClient.getQueryData<Todo[]>(['todos', 'pending'])?.find((item) => item.id === id);
+      const sync = offlineOps.completeTodo(id);
+      // The local cache changes synchronously, before synchronization finishes.
+      if (todo) announceTaskAction(`Completed ${todo.title}. Find it in Done.`);
+      return sync;
+    },
+    onError: () => AppDialog.alert("Couldn't complete task", 'Please refresh the list and try again.'),
   });
 
   const reopenMutation = useMutation({
-    mutationFn: (id: string) => offlineOps.reopenTodo(id),
-    // Optimistic removal is handled inside reopenTodo (local-first).
+    mutationFn: (id: string) => {
+      const todo = queryClient.getQueryData<Todo[]>(['todos', 'completed'])?.find((item) => item.id === id);
+      const sync = offlineOps.reopenTodo(id);
+      if (todo) announceTaskAction(`Reactivated ${todo.title}. Find it in Active.`);
+      return sync;
+    },
+    onError: () => AppDialog.alert("Couldn't reactivate task", 'Please refresh the list and try again.'),
   });
 
   const pokeMutation = useMutation({
@@ -240,7 +274,22 @@ export default function TasksScreen() {
     [router]
   );
 
-  const title = primaryTab === 'mine' ? 'My Tasks' : 'Friends Tasks';
+  const title = primaryTab === 'mine' ? 'My Tasks' : 'Friends’ Tasks';
+  const filterCount = (urgencyFilter === 'all' ? 0 : 1) + selectedTagIds.length;
+  const clearFilters = () => { setUrgencyFilter('all'); setSelectedTagIds([]); };
+  const activeQuery = primaryTab === 'mine'
+    ? (secondaryTab === 'done' ? myDoneQuery : myPendingQuery)
+    : (secondaryTab === 'done' ? friendsDoneQuery : friendsPendingQuery);
+  const hasData = activeQuery.data !== undefined;
+  const blocked = !hasData && (activeQuery.isPending || activeQuery.isError);
+  const filteredEmpty = filterCount > 0 ? (
+    <EmptyState
+      icon={<SlidersHorizontal size={36} color={colors.accentLight} />}
+      title="No tasks match these filters"
+      description="Try clearing your filters to see the rest of your tasks."
+      action={<Button title="Clear filters" variant="secondary" onPress={clearFilters} />}
+    />
+  ) : undefined;
   const todayLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: timezone }).format(new Date());
 
   const onRefresh = () => {
@@ -266,12 +315,14 @@ export default function TasksScreen() {
 
   return (
     <Screen edges={['top', 'left', 'right']}>
-      <View style={styles.heroCard}>
-        <View style={styles.heroTopRow}>
-          <ChristmasArtwork style={styles.heroArtwork} width={88} />
-          <View style={styles.heroTextBlock}>
+      <ScrollView style={{ flexGrow: 0, maxHeight: height * 0.5 }} contentContainerStyle={styles.heroCard}>
+        <View style={[styles.heroTopRow, compactHeader && { minHeight: 64 }]}>
+          {!compactHeader && <ChristmasArtwork style={styles.heroArtwork} width={88} />}
+          <View style={[styles.heroTextBlock, compactHeader && { paddingRight: 0 }]}>
             <View style={styles.heroTitleRow}>
-              <Text style={styles.heroTitle}>{title}</Text>
+              <View ref={taskHeadingRef} accessible accessibilityRole="header" accessibilityLabel={title} tabIndex={-1}>
+                <Text style={styles.heroTitle}>{title}</Text>
+              </View>
               {!isOnline ? (
                 <View style={styles.offlineBadge}>
                   <WifiOff size={12} color={colors.warning} strokeWidth={2.5} />
@@ -285,6 +336,7 @@ export default function TasksScreen() {
               ) : null}
             </View>
             <Text style={styles.heroDate}>{todayLabel}</Text>
+            {actionMessage ? <Text accessibilityLiveRegion="polite" style={styles.actionMessage}>{actionMessage}</Text> : null}
           </View>
         </View>
 
@@ -293,7 +345,7 @@ export default function TasksScreen() {
           onChange={(value) => setPrimaryTab(value as PrimaryTab)}
           options={[
             { value: 'mine', label: 'My Tasks' },
-            { value: 'friends', label: 'Friends Tasks' },
+            { value: 'friends', label: 'Friends’ Tasks' },
           ]}
           variant="primary"
         />
@@ -316,16 +368,18 @@ export default function TasksScreen() {
               <TouchableOpacity
                 onPress={() => setFilterVisible((prev) => !prev)}
                 style={styles.filterToggle}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: filterVisible }}
               >
                 <SlidersHorizontal size={14} color={filterVisible ? colors.accent : colors.textMuted} />
                 <Text style={[styles.filterToggleText, filterVisible && styles.filterToggleTextActive]}>
-                  Filter
+                  {filterCount ? `Filters (${filterCount})` : 'Filter'}
                 </Text>
                 {(urgencyFilter !== 'all' || selectedTagIds.length > 0) ? (
                   <View style={styles.filterActiveDot} />
                 ) : null}
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => router.push('/(app)/todo/new')} style={styles.addBtn}>
+              <TouchableOpacity accessibilityRole="button" onPress={() => router.push('/(app)/todo/new')} style={styles.addBtn}>
                 <Plus size={16} color={colors.onAccent} strokeWidth={2.6} />
                 <Text style={styles.addBtnText}>New Task</Text>
               </TouchableOpacity>
@@ -341,13 +395,25 @@ export default function TasksScreen() {
                     prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
                   )
                 }
-                onClearTags={() => setSelectedTagIds([])}
+                onClearTags={clearFilters}
               />
             ) : null}
           </>
         ) : null}
-      </View>
+      {hasData && activeQuery.isError ? (
+        <LoadState title="Couldn't refresh tasks" description="Showing your saved tasks." onRetry={() => { void activeQuery.refetch(); }} />
+      ) : null}
+      </ScrollView>
 
+      {blocked ? (
+        <LoadState
+          loading={isOnline && activeQuery.isPending && !activeQuery.isPaused}
+          title={!isOnline ? 'No saved tasks to show offline' : activeQuery.isError ? "Couldn't load tasks" : 'Loading tasks…'}
+          description={!isOnline ? 'Reconnect to load this list. You can still create your own tasks offline.' : activeQuery.isError ? 'Your tasks have not been changed.' : undefined}
+          onRetry={isOnline && activeQuery.isError ? () => { void activeQuery.refetch(); } : undefined}
+        />
+      ) : null}
+      {!blocked && <>
       {primaryTab === 'mine' && (secondaryTab === 'active' || secondaryTab === 'today') ? (
         <ReorderableTaskBoard
           groups={importanceGroups}
@@ -356,7 +422,7 @@ export default function TasksScreen() {
           onComplete={(id) => completeMutation.mutate(id)}
           onPress={(todo) => router.push(`/(app)/todo/${todo.id}`)}
           onReorder={(ids) => { void offlineOps.reorderTodos(ids); }}
-          empty={
+          empty={filteredEmpty ?? (
             <EmptyState
               icon={<PartyPopper size={56} color={colors.accentLight} strokeWidth={1.6} />}
               title={secondaryTab === 'today' ? 'No tasks for today' : 'All clear'}
@@ -364,7 +430,7 @@ export default function TasksScreen() {
                 ? 'Tasks with a do date or due date today appear here.'
                 : 'No active tasks right now. Add one and it will land here.'}
             />
-          }
+          )}
         />
       ) : null}
 
@@ -390,6 +456,7 @@ export default function TasksScreen() {
 
       {primaryTab === 'mine' && secondaryTab === 'calendar' ? (
         <CalendarBoard
+          empty={filteredEmpty}
           sections={myCalendarSections}
           loading={myPendingQuery.isLoading || bodyDoubleSessionsQuery.isLoading}
           onRefresh={onRefresh}
@@ -420,6 +487,7 @@ export default function TasksScreen() {
 
       {primaryTab === 'mine' && secondaryTab === 'done' ? (
         <DoneBoard
+          empty={filteredEmpty}
           items={myDoneFiltered.map((todo) => ({ todo }))}
           loading={myDoneQuery.isLoading}
           onRefresh={onRefresh}
@@ -437,6 +505,7 @@ export default function TasksScreen() {
           onPress={openFriendTodo}
         />
       ) : null}
+      </>}
     </Screen>
   );
 }
@@ -501,6 +570,7 @@ function FriendsBoard({
 }
 
 function CalendarBoard({
+  empty,
   sections,
   loading,
   onRefresh,
@@ -511,6 +581,7 @@ function CalendarBoard({
   pokingTodoId,
   sessionSections,
 }: {
+  empty?: React.ReactElement;
   sections: CalendarSection[];
   loading: boolean;
   onRefresh: () => void;
@@ -612,11 +683,11 @@ function CalendarBoard({
       )}
       ListEmptyComponent={
         !loading && !hasContent ? (
-          <Animated.View entering={completionEnter}><EmptyState
+          <Animated.View entering={completionEnter}>{empty ?? <EmptyState
             icon={<CalendarDays size={56} color={colors.accentLight} strokeWidth={1.6} />}
             title="Calendar is empty"
             description="Tasks with do dates or deadlines will line up here by day."
-          /></Animated.View>
+          />}</Animated.View>
         ) : null
       }
     />
@@ -624,6 +695,7 @@ function CalendarBoard({
 }
 
 function DoneBoard({
+  empty,
   items,
   loading,
   onRefresh,
@@ -631,6 +703,7 @@ function DoneBoard({
   onPress,
   readOnly,
 }: {
+  empty?: React.ReactElement;
   items: TaskItem[];
   loading: boolean;
   onRefresh: () => void;
@@ -655,8 +728,7 @@ function DoneBoard({
         />
       )}
       ListEmptyComponent={
-        !loading ? (
-          <EmptyState
+        !loading ? (empty ?? <EmptyState
             icon={<CheckCircle2 size={56} color={colors.accentLight} strokeWidth={1.6} />}
             title="No done tasks yet"
             description={readOnly ? 'Completed public tasks from friends will collect here.' : 'Done tasks stay here so you can revisit or reopen them.'}
@@ -687,7 +759,7 @@ function TabStrip<T extends string>({
             key={option.value}
             onPress={() => onChange(option.value)}
             accessibilityRole="tab"
-            aria-selected={active}
+            accessibilityState={{ selected: active }}
             style={[
               styles.tabButton,
               variant === 'primary' ? styles.primaryTabButton : styles.secondaryTabButton,
@@ -730,14 +802,14 @@ function FilterBar({
     <View style={styles.filterCard}>
       <View style={styles.filterHeaderRow}>
         <Text style={styles.filterTitle}>Filter</Text>
-        {selectedTagIds.length > 0 ? (
-          <TouchableOpacity onPress={onClearTags}>
-            <Text style={styles.clearFilterText}>Clear tags</Text>
+        {(selectedTagIds.length > 0 || urgencyFilter !== 'all') ? (
+          <TouchableOpacity accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }} onPress={onClearTags}>
+            <Text style={styles.clearFilterText}>Clear filters</Text>
           </TouchableOpacity>
         ) : null}
       </View>
 
-      <Text style={styles.filterLabel}>Urgency</Text>
+      <Text style={styles.filterLabel}>Importance</Text>
       <View style={styles.filterChipRow}>
         {(['all', 'A', 'B', 'C'] as UrgencyFilter[]).map((option) => {
           const active = urgencyFilter === option;
@@ -746,6 +818,8 @@ function FilterBar({
           return (
             <TouchableOpacity
               key={option}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: active }}
               onPress={() => onUrgencyFilter(option)}
               style={[
                 styles.filterChip,
@@ -755,7 +829,7 @@ function FilterBar({
                 },
               ]}
             >
-              <Text style={[styles.filterChipText, { color: active ? color : colors.textMuted }]}>{label}</Text>
+              <Text style={[styles.filterChipText, { color: active ? color : colors.textMuted }]}>{active ? `✓ ${label}` : label}</Text>
             </TouchableOpacity>
           );
         })}
@@ -775,6 +849,8 @@ function FilterBar({
             return (
               <TouchableOpacity
                 key={tag.id}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: active }}
                 onPress={() => onToggleTag(tag.id)}
                 style={[
                   styles.filterChip,
@@ -785,7 +861,7 @@ function FilterBar({
                 ]}
               >
                 <Text style={[styles.filterChipText, { color: active ? tag.color : colors.textMuted }]}>
-                  {tag.name}
+                  {active ? `✓ ${tag.name}` : tag.name}
                 </Text>
               </TouchableOpacity>
             );
@@ -797,10 +873,12 @@ function FilterBar({
 }
 
 function EmptyState({
+  action,
   icon,
   title,
   description,
 }: {
+  action?: React.ReactNode;
   icon: React.ReactNode;
   title: string;
   description: string;
@@ -810,6 +888,7 @@ function EmptyState({
       <View style={styles.emptyIconWrap}>{icon}</View>
       <Text style={styles.emptyTitle}>{title}</Text>
       <Text style={styles.emptyDescription}>{description}</Text>
+      {action ? <View style={{ marginTop: 16 }}>{action}</View> : null}
     </View>
   );
 }
@@ -961,6 +1040,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: -0.7,
   },
+  actionMessage: { color: colors.success, fontSize: 13, lineHeight: 19 },
   heroDate: { color: colors.textMuted, fontSize: 12, lineHeight: 18 },
   heroActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   addBtn: {
@@ -1008,7 +1088,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   secondaryTabButton: {
-    minHeight: 42,
+    minHeight: 44,
     paddingHorizontal: 6,
     borderRadius: 0,
     borderBottomWidth: 2,
@@ -1065,9 +1145,12 @@ const styles = StyleSheet.create({
   },
   filterChipRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
   },
   filterChip: {
+    minHeight: 44,
+    justifyContent: 'center',
     borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 10,

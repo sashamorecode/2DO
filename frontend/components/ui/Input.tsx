@@ -7,19 +7,22 @@ interface Props extends TextInputProps {
   error?: string;
 }
 
-export function Input({ label, error, style, ...rest }: Props) {
+export const Input = React.forwardRef<TextInput, Props>(function Input({ label, error, style, ...rest }, ref) {
   return (
     <View style={styles.wrapper}>
       {label && <Text style={styles.label}>{label}</Text>}
       <TextInput
+        ref={ref}
+        accessibilityLabel={label}
+        accessibilityHint={error}
         style={[styles.input, error && styles.inputError, style]}
         placeholderTextColor={colors.textMuted}
         {...rest}
       />
-      {error && <Text style={styles.error}>{error}</Text>}
+      {error && <Text accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   wrapper: { marginBottom: 16 },

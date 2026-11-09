@@ -1,6 +1,7 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { ChevronRight, ListChecks, Lock } from 'lucide-react-native';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { colors } from '../../constants/colors';
 import { Todo } from '../../services/todos.api';
 import { PriorityBadge } from './PriorityBadge';
@@ -32,12 +33,19 @@ export function TodoCard({
   dragHandle,
 }: Props) {
   const cardRef = useRef<View>(null);
-  const completing = useRef(false);
+  const completingRef = useRef(false);
+  const [completing, setCompleting] = useState(false);
+  const reducedMotion = useReducedMotion();
   const steps = todo.steps ?? [];
 
   function handleComplete() {
-    if (!onComplete || completing.current) return;
-    completing.current = true;
+    if (!onComplete || completingRef.current) return;
+    completingRef.current = true;
+    setCompleting(true);
+    if (reducedMotion) {
+      onComplete(todo.id);
+      return;
+    }
     let submitted = false;
     // Measuring is best-effort. Saving must still happen if native layout never replies.
     const submit = () => {
@@ -67,69 +75,74 @@ export function TodoCard({
   }
 
   const contents = (<>
-          <View style={styles.left}>
-            {!readOnly && <CompletionButton onComplete={handleComplete} accessibilityLabel={`Complete ${todo.title}`} />}
-            <View style={styles.content}>
-              <View style={styles.titleRow}>
-                <Text style={styles.title} numberOfLines={2}>{todo.title}</Text>
-                {todo.is_private && (
-                  <Lock size={12} color={colors.textDim} strokeWidth={2.4} />
-                )}
-              </View>
-              {todo.description ? (
-                <Text style={styles.desc} numberOfLines={1}>{todo.description}</Text>
-              ) : null}
-              {todo.tags.length > 0 ? (
-                <View style={styles.tagsRow}>
-                  {todo.tags.map((tag) => (
-                    <TagChip key={tag.id} tag={tag} />
-                  ))}
-                </View>
-              ) : null}
-              <View style={styles.meta}>
-                <PriorityBadge priority={todo.priority} />
-                <DeadlineBadge deadline={todo.deadline} />
-                {steps.length > 0 ? (
-                  <View style={styles.stepProgress}>
-                    <ListChecks size={12} color={colors.textMuted} strokeWidth={2.2} />
-                    <Text style={styles.stepProgressText}>
-                      {steps.filter((step) => step.completed).length}/{steps.length} steps
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
+    {!readOnly ? <CompletionButton disabled={completing || !onComplete} onComplete={handleComplete} accessibilityLabel={`Complete ${todo.title}`} /> : null}
+    <TouchableOpacity
+      style={styles.openTarget}
+      onPress={() => onPress?.(todo)}
+      activeOpacity={0.85}
+      disabled={!onPress || completing}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityHint={onPress ? 'Opens task details' : undefined}
+      accessibilityState={{ disabled: completing }}
+    >
+      <View style={styles.content}>
+        <View style={styles.titleRow}>
+          <Text style={styles.title} numberOfLines={2}>{todo.title}</Text>
+          {todo.is_private && (
+            <Lock size={12} color={colors.textDim} strokeWidth={2.4} />
+          )}
+        </View>
+        {todo.description ? (
+          <Text style={styles.desc} numberOfLines={1}>{todo.description}</Text>
+        ) : null}
+        {todo.tags.length > 0 ? (
+          <View style={styles.tagsRow}>
+            {todo.tags.map((tag) => (
+              <TagChip key={tag.id} tag={tag} />
+            ))}
+          </View>
+        ) : null}
+        <View style={styles.meta}>
+          <PriorityBadge priority={todo.priority} />
+          <DeadlineBadge deadline={todo.deadline} />
+          {steps.length > 0 ? (
+            <View style={styles.stepProgress}>
+              <ListChecks size={12} color={colors.textMuted} strokeWidth={2.2} />
+              <Text style={styles.stepProgressText}>
+                {steps.filter((step) => step.completed).length}/{steps.length} steps
+              </Text>
             </View>
-          </View>
-          <View style={styles.right}> 
-            {onActionPress && actionTitle ? (
-              <TouchableOpacity
-                style={styles.actionChip}
-                onPress={onActionPress}
-                disabled={actionLoading}
-                activeOpacity={0.85}
-              >
-                {actionLoading ? (
-                  <ActivityIndicator size="small" color={colors.text} />
-                ) : (
-                  <Text style={styles.actionChipLabel}>{actionTitle}</Text>
-                )}
-              </TouchableOpacity>
-            ) : null}
-            {dragHandle ?? (onPress && <ChevronRight size={20} color={colors.textDim} strokeWidth={2.2} />)}
-          </View>
+          ) : null}
+        </View>
+      </View>
+      {!dragHandle && onPress ? <ChevronRight size={20} color={colors.textDim} strokeWidth={2.2} /> : null}
+    </TouchableOpacity>
+    <View style={styles.right}>
+      {onActionPress && actionTitle ? (
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={`${actionTitle}: ${todo.title}`}
+          accessibilityState={{ disabled: !!actionLoading, busy: !!actionLoading }}
+          style={styles.actionChip}
+          onPress={onActionPress}
+          disabled={actionLoading}
+          activeOpacity={0.85}
+        >
+          {actionLoading ? (
+            <ActivityIndicator size="small" color={colors.text} />
+          ) : (
+            <Text style={styles.actionChipLabel}>{actionTitle}</Text>
+          )}
+        </TouchableOpacity>
+      ) : null}
+      {dragHandle}
+    </View>
   </>);
 
   return (
-    <TouchableOpacity
-      ref={cardRef as any}
-      style={styles.card}
-      onPress={() => onPress?.(todo)}
-      activeOpacity={0.85}
-      disabled={!onPress}
-      accessible={dragHandle ? false : undefined}
-    >
+    <View ref={cardRef} collapsable={false} style={styles.card}>
       {contents}
-    </TouchableOpacity>
+    </View>
   );
 }
 
@@ -142,11 +155,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 8,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  left: { flexDirection: 'row', alignItems: 'flex-start', flex: 1, gap: 12 },
-  content: { flex: 1, gap: 6 },
+  openTarget: { flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0, gap: 6 },
+  content: { flex: 1, minWidth: 0, gap: 6, minHeight: 44 },
   right: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   title: { color: colors.text, fontSize: 16, fontWeight: '600', flexShrink: 1 },
@@ -156,6 +170,7 @@ const styles = StyleSheet.create({
   stepProgress: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   stepProgressText: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
   actionChip: {
+    minHeight: 44,
     minWidth: 72,
     paddingHorizontal: 14,
     paddingVertical: 9,

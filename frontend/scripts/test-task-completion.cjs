@@ -4,14 +4,15 @@ const vm = require('node:vm');
 const base = require('node:path').resolve(__dirname, '..');
 const ts = require(base + '/node_modules/typescript');
 const source = ts.transpileModule(fs.readFileSync(base + '/components/todo/TodoCard.tsx', 'utf8'), {compilerOptions: {module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React}}).outputText;
-function setup(measure, failCelebration = false) {
+function setup(measure, failCelebration = false, reducedMotion = false) {
   let refs = 0, saved = 0, celebrations = 0;
   const timers = new Map(); let timerId = 0;
-  const react = {useRef: value => ({current: refs++ === 0 ? {measureInWindow: measure} : value}), createElement: (type, props, ...children) => ({type,props:props || {},children}), Fragment:'Fragment'};
+  const react = {useState: value => [value, () => {}], useRef: value => ({current: refs++ === 0 ? {measureInWindow: measure} : value}), createElement: (type, props, ...children) => ({type,props:props || {},children}), Fragment:'Fragment'};
   const module = {exports:{}};
   vm.runInNewContext(source, {module,exports:module.exports,setTimeout:fn=>{timers.set(++timerId,fn);return timerId},clearTimeout:id=>timers.delete(id),require:name=>{
     if(name==='react')return {...react,default:react};
     if(name==='react-native')return {View:'View',Text:'Text',TouchableOpacity:'TouchableOpacity',ActivityIndicator:'ActivityIndicator',StyleSheet:{create:x=>x}};
+    if(name.includes('/useReducedMotion'))return {useReducedMotion:()=>reducedMotion};
     if(name.includes('/Celebration'))return {celebrate:()=>{if(failCelebration)throw Error('overlay unavailable');celebrations++}};
     if(name.includes('/colors'))return {colors:{}};
     return new Proxy({}, {get:(_,key)=>key});
@@ -27,4 +28,5 @@ t=setup(cb=>{callback=cb});t.click();t.flush();callback(10,20,300,110);assert.de
 t=setup(()=>{throw Error('unmounted')});t.click();t.flush();assert.deepEqual(t.counts(),{saved:1,celebrations:0});
 t=setup(cb=>cb(0,0,0,0));t.click();t.flush();assert.deepEqual(t.counts(),{saved:1,celebrations:0});
 t=setup(cb=>cb(10,20,300,110),true);t.click();t.flush();assert.deepEqual(t.counts(),{saved:1,celebrations:0});
-console.log('PASS: one save per tap sequence; missing, late, throwing and zero-size measurements still save without duplicate celebrations.');
+t=setup(()=>{throw Error('reduced motion must not measure')},false,true);t.click();t.click();t.flush();assert.deepEqual(t.counts(),{saved:1,celebrations:0});
+console.log('PASS: one save per tap sequence; missing, late, throwing and zero-size measurements still save without duplicate celebrations; reduced motion completes immediately.');
