@@ -1,4 +1,6 @@
-import Animated from 'react-native-reanimated';
+import Animated, { LayoutAnimationConfig, LinearTransition } from 'react-native-reanimated';
+import { disclosureEnter, disclosureExit, easeOut, gentleEnter, gentleExit, gentleLayout, listLayout, rowEnter } from '../../constants/motion';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { completionLayout, completionExit, completionEnter, countEnter } from '../../components/completion/CompletionLayout';
 import { AppDialog } from '../../services/appDialog';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
@@ -73,6 +75,7 @@ interface CalendarSection {
 }
 
 export default function TasksScreen() {
+  const reduced = useReducedMotion();
   const { width, height, fontScale } = useWindowDimensions();
   const compactHeader = width < 380 || height < 700 || fontScale > 1.2;
   const queryClient = useQueryClient();
@@ -315,7 +318,11 @@ export default function TasksScreen() {
 
   return (
     <Screen edges={['top', 'left', 'right']}>
-      <ScrollView style={{ flexGrow: 0, maxHeight: height * 0.5 }} contentContainerStyle={styles.heroCard}>
+      <Animated.ScrollView
+        layout={reduced ? undefined : LinearTransition.duration(220).easing(easeOut)}
+        style={{ flexGrow: 0, maxHeight: height * 0.5 }}
+        contentContainerStyle={styles.heroCard}
+      >
         <View style={[styles.heroTopRow, compactHeader && { minHeight: 64 }]}>
           {!compactHeader && <ChristmasArtwork style={styles.heroArtwork} width={88} />}
           <View style={[styles.heroTextBlock, compactHeader && { paddingRight: 0 }]}>
@@ -336,7 +343,15 @@ export default function TasksScreen() {
               ) : null}
             </View>
             <Text style={styles.heroDate}>{todayLabel}</Text>
-            {actionMessage ? <Text accessibilityLiveRegion="polite" style={styles.actionMessage}>{actionMessage}</Text> : null}
+            {actionMessage ? (
+              <Animated.Text
+                entering={reduced ? gentleEnter : disclosureEnter}
+                accessibilityLiveRegion="polite"
+                style={styles.actionMessage}
+              >
+                {actionMessage}
+              </Animated.Text>
+            ) : null}
           </View>
         </View>
 
@@ -385,127 +400,137 @@ export default function TasksScreen() {
               </TouchableOpacity>
             </View>
             {filterVisible ? (
-              <FilterBar
-                urgencyFilter={urgencyFilter}
-                onUrgencyFilter={setUrgencyFilter}
-                selectedTagIds={selectedTagIds}
-                tags={tags}
-                onToggleTag={(tagId) =>
-                  setSelectedTagIds((prev) =>
-                    prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
-                  )
-                }
-                onClearTags={clearFilters}
-              />
+              <Animated.View
+                entering={reduced ? gentleEnter : disclosureEnter}
+                exiting={reduced ? gentleExit : disclosureExit}
+              >
+                <FilterBar
+                  urgencyFilter={urgencyFilter}
+                  onUrgencyFilter={setUrgencyFilter}
+                  selectedTagIds={selectedTagIds}
+                  tags={tags}
+                  onToggleTag={(tagId) =>
+                    setSelectedTagIds((prev) =>
+                      prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
+                    )
+                  }
+                  onClearTags={clearFilters}
+                />
+              </Animated.View>
             ) : null}
           </>
         ) : null}
       {hasData && activeQuery.isError ? (
         <LoadState title="Couldn't refresh tasks" description="Showing your saved tasks." onRetry={() => { void activeQuery.refetch(); }} />
       ) : null}
-      </ScrollView>
+      </Animated.ScrollView>
 
-      {blocked ? (
-        <LoadState
-          loading={isOnline && activeQuery.isPending && !activeQuery.isPaused}
-          title={!isOnline ? 'No saved tasks to show offline' : activeQuery.isError ? "Couldn't load tasks" : 'Loading tasks…'}
-          description={!isOnline ? 'Reconnect to load this list. You can still create your own tasks offline.' : activeQuery.isError ? 'Your tasks have not been changed.' : undefined}
-          onRetry={isOnline && activeQuery.isError ? () => { void activeQuery.refetch(); } : undefined}
-        />
-      ) : null}
-      {!blocked && <>
-      {primaryTab === 'mine' && (secondaryTab === 'active' || secondaryTab === 'today') ? (
-        <ReorderableTaskBoard
-          groups={importanceGroups}
-          loading={myPendingQuery.isLoading}
-          onRefresh={onRefresh}
-          onComplete={(id) => completeMutation.mutate(id)}
-          onPress={(todo) => router.push(`/(app)/todo/${todo.id}`)}
-          onReorder={(ids) => { void offlineOps.reorderTodos(ids); }}
-          empty={filteredEmpty ?? (
-            <EmptyState
-              icon={<PartyPopper size={56} color={colors.accentLight} strokeWidth={1.6} />}
-              title={secondaryTab === 'today' ? 'No tasks for today' : 'All clear'}
-              description={secondaryTab === 'today'
-                ? 'Tasks with a do date or due date today appear here.'
-                : 'No active tasks right now. Add one and it will land here.'}
-            />
-          )}
-        />
-      ) : null}
-
-      {primaryTab === 'friends' && (secondaryTab === 'active' || secondaryTab === 'today') ? (
-        <>
-          {!isOnline ? (
-            <View style={styles.offlineBanner}>
-              <WifiOff size={16} color={colors.warning} strokeWidth={2.2} />
-              <Text style={styles.offlineBannerText}>You're offline — friends' tasks can't be loaded.</Text>
-            </View>
-          ) : null}
-          <FriendsBoard
-            todayOnly={secondaryTab === 'today'}
-            feed={friendsActiveGroups}
-            loading={friendsPendingQuery.isLoading}
+      <Animated.View
+        layout={reduced ? undefined : LinearTransition.duration(220).easing(easeOut)}
+        style={{ flex: 1, minHeight: 0 }}
+      >
+        {blocked ? (
+          <LoadState
+            loading={isOnline && activeQuery.isPending && !activeQuery.isPaused}
+            title={!isOnline ? 'No saved tasks to show offline' : activeQuery.isError ? "Couldn't load tasks" : 'Loading tasks…'}
+            description={!isOnline ? 'Reconnect to load this list. You can still create your own tasks offline.' : activeQuery.isError ? 'Your tasks have not been changed.' : undefined}
+            onRetry={isOnline && activeQuery.isError ? () => { void activeQuery.refetch(); } : undefined}
+          />
+        ) : null}
+        {!blocked && <>
+        {primaryTab === 'mine' && (secondaryTab === 'active' || secondaryTab === 'today') ? (
+          <ReorderableTaskBoard
+            groups={importanceGroups}
+            loading={myPendingQuery.isLoading}
             onRefresh={onRefresh}
+            onComplete={(id) => completeMutation.mutate(id)}
+            onPress={(todo) => router.push(`/(app)/todo/${todo.id}`)}
+            onReorder={(ids) => { void offlineOps.reorderTodos(ids); }}
+            empty={filteredEmpty ?? (
+              <EmptyState
+                icon={<PartyPopper size={56} color={colors.accentLight} strokeWidth={1.6} />}
+                title={secondaryTab === 'today' ? 'No tasks for today' : 'All clear'}
+                description={secondaryTab === 'today'
+                  ? 'Tasks with a do date or due date today appear here.'
+                  : 'No active tasks right now. Add one and it will land here.'}
+              />
+            )}
+          />
+        ) : null}
+
+        {primaryTab === 'friends' && (secondaryTab === 'active' || secondaryTab === 'today') ? (
+          <>
+            {!isOnline ? (
+              <View style={styles.offlineBanner}>
+                <WifiOff size={16} color={colors.warning} strokeWidth={2.2} />
+                <Text style={styles.offlineBannerText}>You're offline — friends' tasks can't be loaded.</Text>
+              </View>
+            ) : null}
+            <FriendsBoard
+              todayOnly={secondaryTab === 'today'}
+              feed={friendsActiveGroups}
+              loading={friendsPendingQuery.isLoading}
+              onRefresh={onRefresh}
+              onPress={openFriendTodo}
+              pokingTodoId={pokingTodoId}
+              onPoke={(todoId, ownerName, title) => pokeMutation.mutate({ todoId, ownerName, title })}
+            />
+          </>
+        ) : null}
+
+        {primaryTab === 'mine' && secondaryTab === 'calendar' ? (
+          <CalendarBoard
+            empty={filteredEmpty}
+            sections={myCalendarSections}
+            loading={myPendingQuery.isLoading || bodyDoubleSessionsQuery.isLoading}
+            onRefresh={onRefresh}
+            onComplete={(id) => completeMutation.mutate(id)}
+            onPress={(todo) => router.push(`/(app)/todo/${todo.id}`)}
+            sessionSections={sessionCalendarSections}
+          />
+        ) : null}
+
+        {primaryTab === 'friends' && secondaryTab === 'calendar' ? (
+          <CalendarBoard
+            sections={friendsCalendarSections}
+            loading={friendsPendingQuery.isLoading || bodyDoubleSessionsQuery.isLoading}
+            onRefresh={onRefresh}
+            readOnly
             onPress={openFriendTodo}
             pokingTodoId={pokingTodoId}
-            onPoke={(todoId, ownerName, title) => pokeMutation.mutate({ todoId, ownerName, title })}
+            onPoke={(item) =>
+              pokeMutation.mutate({
+                todoId: item.todo.id,
+                ownerName: item.owner?.username,
+                title: item.todo.title,
+              })
+            }
+            sessionSections={sessionCalendarSections}
           />
-        </>
-      ) : null}
+        ) : null}
 
-      {primaryTab === 'mine' && secondaryTab === 'calendar' ? (
-        <CalendarBoard
-          empty={filteredEmpty}
-          sections={myCalendarSections}
-          loading={myPendingQuery.isLoading || bodyDoubleSessionsQuery.isLoading}
-          onRefresh={onRefresh}
-          onComplete={(id) => completeMutation.mutate(id)}
-          onPress={(todo) => router.push(`/(app)/todo/${todo.id}`)}
-          sessionSections={sessionCalendarSections}
-        />
-      ) : null}
+        {primaryTab === 'mine' && secondaryTab === 'done' ? (
+          <DoneBoard
+            empty={filteredEmpty}
+            items={myDoneFiltered.map((todo) => ({ todo }))}
+            loading={myDoneQuery.isLoading}
+            onRefresh={onRefresh}
+            onReopen={(id) => reopenMutation.mutate(id)}
+            onPress={(todo) => router.push(`/(app)/todo/${todo.id}`)}
+          />
+        ) : null}
 
-      {primaryTab === 'friends' && secondaryTab === 'calendar' ? (
-        <CalendarBoard
-          sections={friendsCalendarSections}
-          loading={friendsPendingQuery.isLoading || bodyDoubleSessionsQuery.isLoading}
-          onRefresh={onRefresh}
-          readOnly
-          onPress={openFriendTodo}
-          pokingTodoId={pokingTodoId}
-          onPoke={(item) =>
-            pokeMutation.mutate({
-              todoId: item.todo.id,
-              ownerName: item.owner?.username,
-              title: item.todo.title,
-            })
-          }
-          sessionSections={sessionCalendarSections}
-        />
-      ) : null}
-
-      {primaryTab === 'mine' && secondaryTab === 'done' ? (
-        <DoneBoard
-          empty={filteredEmpty}
-          items={myDoneFiltered.map((todo) => ({ todo }))}
-          loading={myDoneQuery.isLoading}
-          onRefresh={onRefresh}
-          onReopen={(id) => reopenMutation.mutate(id)}
-          onPress={(todo) => router.push(`/(app)/todo/${todo.id}`)}
-        />
-      ) : null}
-
-      {primaryTab === 'friends' && secondaryTab === 'done' ? (
-        <DoneBoard
-          items={friendDoneItems}
-          loading={friendsDoneQuery.isLoading}
-          onRefresh={onRefresh}
-          readOnly
-          onPress={openFriendTodo}
-        />
-      ) : null}
-      </>}
+        {primaryTab === 'friends' && secondaryTab === 'done' ? (
+          <DoneBoard
+            items={friendDoneItems}
+            loading={friendsDoneQuery.isLoading}
+            onRefresh={onRefresh}
+            readOnly
+            onPress={openFriendTodo}
+          />
+        ) : null}
+        </>}
+      </Animated.View>
     </Screen>
   );
 }
@@ -711,31 +736,40 @@ function DoneBoard({
   onPress?: (todo: Todo) => void;
   readOnly?: boolean;
 }) {
+  const reduced = useReducedMotion();
   return (
-    <FlatList
-      data={items}
-      keyExtractor={(item) => `${item.owner?.id ?? 'mine'}-${item.todo.id}`}
-      contentContainerStyle={styles.list}
-      refreshControl={
-        <RefreshControl refreshing={loading} onRefresh={onRefresh} tintColor={colors.accent} />
-      }
-      renderItem={({ item }) => (
-        <FinishedRow
-          todo={item.todo}
-          ownerLabel={item.owner?.username ?? undefined}
-          onReopen={readOnly || !onReopen ? undefined : () => onReopen(item.todo.id)}
-          onPress={!onPress ? undefined : () => onPress(item.todo)}
-        />
-      )}
-      ListEmptyComponent={
-        !loading ? (empty ?? <EmptyState
-            icon={<CheckCircle2 size={56} color={colors.accentLight} strokeWidth={1.6} />}
-            title="No done tasks yet"
-            description={readOnly ? 'Completed public tasks from friends will collect here.' : 'Done tasks stay here so you can revisit or reopen them.'}
-          />
-        ) : null
-      }
-    />
+    <LayoutAnimationConfig skipEntering skipExiting>
+      <FlatList
+        data={items}
+        keyExtractor={(item) => `${item.owner?.id ?? 'mine'}-${item.todo.id}`}
+        contentContainerStyle={styles.list}
+        refreshControl={
+          <RefreshControl refreshing={loading} onRefresh={onRefresh} tintColor={colors.accent} />
+        }
+        renderItem={({ item }) => (
+          <Animated.View
+            entering={reduced ? gentleEnter : rowEnter}
+            exiting={reduced ? gentleExit : completionExit}
+            layout={reduced ? gentleLayout : listLayout}
+          >
+            <FinishedRow
+              todo={item.todo}
+              ownerLabel={item.owner?.username ?? undefined}
+              onReopen={readOnly || !onReopen ? undefined : () => onReopen(item.todo.id)}
+              onPress={!onPress ? undefined : () => onPress(item.todo)}
+            />
+          </Animated.View>
+        )}
+        ListEmptyComponent={
+          !loading ? (empty ?? <EmptyState
+              icon={<CheckCircle2 size={56} color={colors.accentLight} strokeWidth={1.6} />}
+              title="No done tasks yet"
+              description={readOnly ? 'Completed public tasks from friends will collect here.' : 'Done tasks stay here so you can revisit or reopen them.'}
+            />
+          ) : null
+        }
+      />
+    </LayoutAnimationConfig>
   );
 }
 

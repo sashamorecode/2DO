@@ -1,5 +1,8 @@
 import { AppDialog } from '../../services/appDialog';
 import React, { useRef, useState } from 'react';
+import Animated, { LayoutAnimationConfig } from 'react-native-reanimated';
+import { disclosureExit, gentleEnter, gentleExit, gentleLayout, listLayout, rowEnter } from '../../constants/motion';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { View, Text, StyleSheet } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { WifiOff } from 'lucide-react-native';
@@ -14,6 +17,7 @@ import { friendsApi, FriendItem, FriendRequest } from '../../services/friends.ap
 import { useOfflineStore } from '../../store/offlineStore';
 
 export default function SocialScreen() {
+  const reduced = useReducedMotion();
   const qc = useQueryClient();
   const pendingRemovalIds = useRef(new Set<string>());
   const [removingIds, setRemovingIds] = useState(new Set<string>());
@@ -68,72 +72,86 @@ export default function SocialScreen() {
 
   return (
     <Screen>
-      <KeyboardAwareScrollView contentContainerStyle={styles.list}>
-        {!isOnline ? (
-          <View style={styles.offlineBanner}>
-            <WifiOff size={16} color={colors.warning} strokeWidth={2.2} />
-            <Text style={styles.offlineBannerText}>
-              You're offline — friend management is unavailable.
-            </Text>
-          </View>
-        ) : null}
-
-        <Section title="Add Friends">
-          <FriendSearch disabled={!isOnline} onSendRequest={(id) => sendRequestMutation.mutateAsync(id)} />
-        </Section>
-
-        {incomingQuery.isError ? (
-          <LoadState title="Couldn't load friend requests" onRetry={isOnline ? () => { void incomingQuery.refetch(); } : undefined} />
-        ) : incomingQuery.isLoading ? <LoadState title="Loading friend requests…" loading /> : null}
-
-        {incoming.length > 0 ? (
-          <Section title={`Friend Requests (${incoming.length})`}>
-            {incoming.map((request) => (
-              <IncomingRequestRow
-                key={request.id}
-                item={request}
-                disabled={!isOnline}
-                onAccept={() => acceptMutation.mutateAsync(request.id)}
-                onDecline={() => declineMutation.mutateAsync(request.id)}
-              />
-            ))}
-          </Section>
-        ) : null}
-
-        <Section title={friendsQuery.data ? `Friends (${friends.length})` : 'Friends'}>
-          {friendsQuery.isError ? <LoadState title="Couldn't refresh friends" description={friendsQuery.data ? "Showing your saved friends." : undefined} onRetry={isOnline ? () => { void friendsQuery.refetch(); } : undefined} /> : null}
-          {friends.length > 0 ? (
-            friends.map((friend) => (
-              <FriendRow
-                key={friend.friendship_id}
-                item={friend}
-                disabled={!isOnline}
-                loading={removingIds.has(friend.friendship_id)}
-                onRemove={() => {
-                  AppDialog.alert('Remove Friend', `Remove ${friend.user.username}?`, [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Remove', style: 'destructive', onPress: () => removeFriend(friend.friendship_id) },
-                  ]);
-                }}
-              />
-            ))
-          ) : friendsQuery.isLoading ? (
-            <LoadState title="Loading friends…" loading />
-          ) : !friendsQuery.isError ? (
-            <Text style={styles.emptyText}>{!isOnline && !friendsQuery.data ? 'Connect to load your friends.' : 'No friends yet — search above to add some.'}</Text>
+      <LayoutAnimationConfig skipEntering skipExiting>
+        <KeyboardAwareScrollView contentContainerStyle={styles.list}>
+          {!isOnline ? (
+            <View style={styles.offlineBanner}>
+              <WifiOff size={16} color={colors.warning} strokeWidth={2.2} />
+              <Text style={styles.offlineBannerText}>
+                You're offline — friend management is unavailable.
+              </Text>
+            </View>
           ) : null}
-        </Section>
-      </KeyboardAwareScrollView>
+
+          <Section title="Add Friends">
+            <FriendSearch disabled={!isOnline} onSendRequest={(id) => sendRequestMutation.mutateAsync(id)} />
+          </Section>
+
+          {incomingQuery.isError ? (
+            <LoadState title="Couldn't load friend requests" onRetry={isOnline ? () => { void incomingQuery.refetch(); } : undefined} />
+          ) : incomingQuery.isLoading ? <LoadState title="Loading friend requests…" loading /> : null}
+
+          {incoming.length > 0 ? (
+            <Section title={`Friend Requests (${incoming.length})`}>
+              {incoming.map((request) => (
+                <Animated.View
+                  key={request.id}
+                  entering={reduced ? gentleEnter : rowEnter}
+                  exiting={reduced ? gentleExit : disclosureExit}
+                  layout={reduced ? gentleLayout : listLayout}
+                >
+                  <IncomingRequestRow
+                    item={request}
+                    disabled={!isOnline}
+                    onAccept={() => acceptMutation.mutateAsync(request.id)}
+                    onDecline={() => declineMutation.mutateAsync(request.id)}
+                  />
+                </Animated.View>
+              ))}
+            </Section>
+          ) : null}
+
+          <Section title={friendsQuery.data ? `Friends (${friends.length})` : 'Friends'}>
+            {friendsQuery.isError ? <LoadState title="Couldn't refresh friends" description={friendsQuery.data ? "Showing your saved friends." : undefined} onRetry={isOnline ? () => { void friendsQuery.refetch(); } : undefined} /> : null}
+            {friends.length > 0 ? (
+              friends.map((friend) => (
+                <FriendRow
+                  key={friend.friendship_id}
+                  item={friend}
+                  disabled={!isOnline}
+                  loading={removingIds.has(friend.friendship_id)}
+                  onRemove={() => {
+                    AppDialog.alert('Remove Friend', `Remove ${friend.user.username}?`, [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Remove', style: 'destructive', onPress: () => removeFriend(friend.friendship_id) },
+                    ]);
+                  }}
+                />
+              ))
+            ) : friendsQuery.isLoading ? (
+              <LoadState title="Loading friends…" loading />
+            ) : !friendsQuery.isError ? (
+              <Text style={styles.emptyText}>{!isOnline && !friendsQuery.data ? 'Connect to load your friends.' : 'No friends yet — search above to add some.'}</Text>
+            ) : null}
+          </Section>
+        </KeyboardAwareScrollView>
+      </LayoutAnimationConfig>
     </Screen>
   );
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const reduced = useReducedMotion();
   return (
-    <View style={styles.section}>
+    <Animated.View
+      collapsable={false}
+      layout={reduced ? gentleLayout : listLayout}
+      exiting={reduced ? gentleExit : disclosureExit}
+      style={styles.section}
+    >
       <Text style={styles.sectionHeader}>{title}</Text>
       {children}
-    </View>
+    </Animated.View>
   );
 }
 

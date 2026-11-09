@@ -1,5 +1,8 @@
 import { AppDialog } from '../../services/appDialog';
 import React, { useMemo } from 'react';
+import Animated, { LayoutAnimationConfig } from 'react-native-reanimated';
+import { disclosureExit, gentleEnter, gentleExit, gentleLayout, listLayout, rowEnter } from '../../constants/motion';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { WifiOff } from 'lucide-react-native';
@@ -15,6 +18,7 @@ import { useOfflineStore } from '../../store/offlineStore';
 import { useBodyDoubleSessions } from '../../hooks/useBodyDoubleSessions';
 
 export default function InboxScreen() {
+  const reduced = useReducedMotion();
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const timezone = user?.timezone;
@@ -94,100 +98,120 @@ export default function InboxScreen() {
 
   return (
     <Screen>
-      <ScrollView
-        contentContainerStyle={styles.list}
-        refreshControl={
-          <RefreshControl
-            refreshing={isLoading}
-            onRefresh={() => {
-              refetchFriends();
-              refetchSessions();
-            }}
-            tintColor={colors.accentLight}
-          />
-        }
-      >
-        {!isOnline ? (
-          <View style={styles.offlineBanner}>
-            <WifiOff size={16} color={colors.warning} strokeWidth={2.2} />
-            <Text style={styles.offlineBannerText}>
-              You're offline — inbox is unavailable.
-            </Text>
-          </View>
-        ) : null}
+      <LayoutAnimationConfig skipEntering skipExiting>
+        <ScrollView
+          contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl
+              refreshing={isLoading}
+              onRefresh={() => {
+                refetchFriends();
+                refetchSessions();
+              }}
+              tintColor={colors.accentLight}
+            />
+          }
+        >
+          {!isOnline ? (
+            <View style={styles.offlineBanner}>
+              <WifiOff size={16} color={colors.warning} strokeWidth={2.2} />
+              <Text style={styles.offlineBannerText}>
+                You're offline — inbox is unavailable.
+              </Text>
+            </View>
+          ) : null}
 
-        {!hasContent && !isLoading && isOnline && (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyTitle}>All clear!</Text>
-            <Text style={styles.emptySub}>
-              No pending friend requests or body double invitations.
-            </Text>
-          </View>
-        )}
+          {!hasContent && !isLoading && isOnline && (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyTitle}>All clear!</Text>
+              <Text style={styles.emptySub}>
+                No pending friend requests or body double invitations.
+              </Text>
+            </View>
+          )}
 
-        {pendingInvitations.length > 0 && (
-          <Section title={`Body Double Invitations (${pendingInvitations.length})`}>
-            {pendingInvitations.map((inv) => (
-              <BodyDoubleInvitationCard
-                key={inv.invitationId}
-                username={inv.username}
-                taskTitle={inv.taskTitle}
-                message={inv.message}
-                scheduledAt={formatDateTimeInTimeZone(inv.scheduledAt, timezone, {
-                  weekday: 'short',
-                  month: 'short',
-                  day: 'numeric',
-                  hour: 'numeric',
-                  minute: '2-digit',
-                })}
-                loading={respondMutation.isPending}
-                onAccept={() =>
-                  respondMutation.mutate({
-                    invitationId: inv.invitationId,
-                    status: 'accepted',
-                  })
-                }
-                onMaybe={() =>
-                  respondMutation.mutate({
-                    invitationId: inv.invitationId,
-                    status: 'maybe',
-                  })
-                }
-                onDecline={() =>
-                  respondMutation.mutate({
-                    invitationId: inv.invitationId,
-                    status: 'declined',
-                  })
-                }
-              />
-            ))}
-          </Section>
-        )}
+          {pendingInvitations.length > 0 && (
+            <Section title={`Body Double Invitations (${pendingInvitations.length})`}>
+              {pendingInvitations.map((inv) => (
+                <Animated.View
+                  key={inv.invitationId}
+                  entering={reduced ? gentleEnter : rowEnter}
+                  exiting={reduced ? gentleExit : disclosureExit}
+                  layout={reduced ? gentleLayout : listLayout}
+                >
+                  <BodyDoubleInvitationCard
+                    username={inv.username}
+                    taskTitle={inv.taskTitle}
+                    message={inv.message}
+                    scheduledAt={formatDateTimeInTimeZone(inv.scheduledAt, timezone, {
+                      weekday: 'short',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })}
+                    loading={respondMutation.isPending}
+                    onAccept={() =>
+                      respondMutation.mutate({
+                        invitationId: inv.invitationId,
+                        status: 'accepted',
+                      })
+                    }
+                    onMaybe={() =>
+                      respondMutation.mutate({
+                        invitationId: inv.invitationId,
+                        status: 'maybe',
+                      })
+                    }
+                    onDecline={() =>
+                      respondMutation.mutate({
+                        invitationId: inv.invitationId,
+                        status: 'declined',
+                      })
+                    }
+                  />
+                </Animated.View>
+              ))}
+            </Section>
+          )}
 
-        {incoming.length > 0 && (
-          <Section title={`Friend Requests (${incoming.length})`}>
-            {incoming.map((request) => (
-              <IncomingRequestRow
-                key={request.id}
-                item={request}
-                disabled={!isOnline}
-                onAccept={() => acceptFriendMutation.mutateAsync(request.id)}
-                onDecline={() => declineFriendMutation.mutateAsync(request.id)}
-              />
-            ))}
-          </Section>
-        )}
-      </ScrollView>
+          {incoming.length > 0 && (
+            <Section title={`Friend Requests (${incoming.length})`}>
+              {incoming.map((request) => (
+                <Animated.View
+                  key={request.id}
+                  entering={reduced ? gentleEnter : rowEnter}
+                  exiting={reduced ? gentleExit : disclosureExit}
+                  layout={reduced ? gentleLayout : listLayout}
+                >
+                  <IncomingRequestRow
+                    item={request}
+                    disabled={!isOnline}
+                    onAccept={() => acceptFriendMutation.mutateAsync(request.id)}
+                    onDecline={() => declineFriendMutation.mutateAsync(request.id)}
+                  />
+                </Animated.View>
+              ))}
+            </Section>
+          )}
+        </ScrollView>
+      </LayoutAnimationConfig>
     </Screen>
   );
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const reduced = useReducedMotion();
   return (
-    <View style={styles.section}>
+    <Animated.View
+      collapsable={false}
+      layout={reduced ? gentleLayout : listLayout}
+      exiting={reduced ? gentleExit : disclosureExit}
+      style={styles.section}
+    >
       <Text style={styles.sectionHeader}>{title}</Text>
       {children}
-    </View>
+    </Animated.View>
   );
 }
 

@@ -8,7 +8,9 @@ import {
   StyleSheet,
   Switch,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
+import Animated, { LayoutAnimationConfig } from 'react-native-reanimated';
 import { useFocusEffect } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -17,6 +19,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { DateTimeField } from '../ui/DateTimeField';
 import { Check, Plus, X, Lock } from 'lucide-react-native';
 import { colors } from '../../constants/colors';
+import { disclosureEnter, disclosureExit, gentleEnter, gentleExit, gentleLayout, listLayout, rowEnter } from '../../constants/motion';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
+import { completionExit } from '../completion/CompletionLayout';
 import { Priority, PRIORITIES, PRIORITY_ORDER } from '../../constants/priorities';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
@@ -123,6 +128,8 @@ export function TodoForm({
   resetOnSave = 'current',
   suspendAutoSaveRef,
 }: Props) {
+  const reducedMotion = useReducedMotion();
+  const layout = Platform.OS === 'web' ? undefined : reducedMotion ? gentleLayout : listLayout;
   const timezone = useAuthStore((s) => s.user?.timezone);
   const userId = useAuthStore((s) => s.user?.id) ?? '';
   const queryClient = useQueryClient();
@@ -437,7 +444,11 @@ export function TodoForm({
         )}
 
         {showTagCreator ? (
-          <View style={styles.tagCreatorCard}>
+          <Animated.View
+            entering={Platform.OS === 'web' ? undefined : reducedMotion ? gentleEnter : disclosureEnter}
+            exiting={Platform.OS === 'web' ? undefined : reducedMotion ? gentleExit : disclosureExit}
+            style={styles.tagCreatorCard}
+          >
             <Input
               editable={!saving}
               label="Tag name"
@@ -473,7 +484,7 @@ export function TodoForm({
               loading={createTagMutation.isPending}
               style={styles.addTagBtn}
             />
-          </View>
+          </Animated.View>
         ) : null}
       </View>
 
@@ -495,94 +506,107 @@ export function TodoForm({
         onHasTime={(b) => setValue('plannedHasTime', b, { shouldDirty: true })}
       />
 
+      {/* Leave resizing containers unanimated so keyboard reveal sees one final content-size change. */}
       <View style={styles.stepsSection}>
         <Text style={styles.label}>Steps</Text>
-        <View style={styles.stepsList}>
-          {steps.map((step) => (
-            <View key={step.key} style={styles.stepRow}>
-              <TouchableOpacity
-                disabled={saving}
-                accessibilityRole="checkbox"
-                accessibilityLabel={step.name.trim() || 'Step'}
-                accessibilityState={{ checked: step.completed }}
-                style={styles.stepToggle}
-                onPress={() => updateStep(step.key, { completed: !step.completed })}
+        <LayoutAnimationConfig skipEntering>
+          <View style={styles.stepsList}>
+            {steps.map((step) => (
+              <Animated.View
+                key={step.key}
+                entering={Platform.OS === 'web' ? undefined : reducedMotion ? gentleEnter : rowEnter}
+                exiting={Platform.OS === 'web' ? undefined : reducedMotion ? gentleExit : completionExit}
+                layout={layout}
+                style={styles.stepRow}
               >
-                <View style={[styles.stepCheckbox, step.completed && styles.stepCheckboxCompleted]}>
-                  {step.completed ? <Check size={14} color={colors.onAccent} strokeWidth={2.6} /> : null}
-                </View>
-              </TouchableOpacity>
-              <TextInput
-                editable={!saving}
-                accessibilityLabel="Step name"
-                value={step.name}
-                onChangeText={(name) => updateStep(step.key, { name })}
-                placeholder="What is the next step?"
-                placeholderTextColor={colors.textMuted}
-                style={[styles.stepInput, step.completed && styles.stepInputCompleted]}
-              />
+                <TouchableOpacity
+                  disabled={saving}
+                  accessibilityRole="checkbox"
+                  accessibilityLabel={step.name.trim() || 'Step'}
+                  accessibilityState={{ checked: step.completed }}
+                  style={styles.stepToggle}
+                  onPress={() => updateStep(step.key, { completed: !step.completed })}
+                >
+                  <View style={[styles.stepCheckbox, step.completed && styles.stepCheckboxCompleted]}>
+                    {step.completed ? <Check size={14} color={colors.onAccent} strokeWidth={2.6} /> : null}
+                  </View>
+                </TouchableOpacity>
+                <TextInput
+                  editable={!saving}
+                  accessibilityLabel="Step name"
+                  value={step.name}
+                  onChangeText={(name) => updateStep(step.key, { name })}
+                  placeholder="What is the next step?"
+                  placeholderTextColor={colors.textMuted}
+                  style={[styles.stepInput, step.completed && styles.stepInputCompleted]}
+                />
+                <TouchableOpacity
+                  disabled={saving}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Delete step${step.name.trim() ? `: ${step.name.trim()}` : ''}`}
+                  style={styles.stepDelete}
+                  onPress={() => setValue(
+                    'steps',
+                    getValues('steps').filter((row) => row.key !== step.key),
+                    { shouldDirty: true }
+                  )}
+                >
+                  <X size={16} color={colors.textDim} strokeWidth={2.4} />
+                </TouchableOpacity>
+              </Animated.View>
+            ))}
+            <Animated.View layout={layout}>
               <TouchableOpacity
                 disabled={saving}
                 accessibilityRole="button"
-                accessibilityLabel={`Delete step${step.name.trim() ? `: ${step.name.trim()}` : ''}`}
-                style={styles.stepDelete}
+                style={styles.addStepBtn}
                 onPress={() => setValue(
                   'steps',
-                  getValues('steps').filter((row) => row.key !== step.key),
+                  [...getValues('steps'), { key: createStepKey(), name: '', completed: false }],
                   { shouldDirty: true }
                 )}
               >
-                <X size={16} color={colors.textDim} strokeWidth={2.4} />
+                <Plus size={14} color={colors.accentLight} strokeWidth={2.4} />
+                <Text style={styles.tagCreateToggleText}>Add step</Text>
               </TouchableOpacity>
-            </View>
-          ))}
-          <TouchableOpacity
-            disabled={saving}
-            accessibilityRole="button"
-            style={styles.addStepBtn}
-            onPress={() => setValue(
-              'steps',
-              [...getValues('steps'), { key: createStepKey(), name: '', completed: false }],
-              { shouldDirty: true }
-            )}
-          >
-            <Plus size={14} color={colors.accentLight} strokeWidth={2.4} />
-            <Text style={styles.tagCreateToggleText}>Add step</Text>
-          </TouchableOpacity>
-        </View>
+            </Animated.View>
+          </View>
+        </LayoutAnimationConfig>
       </View>
 
-      <Controller
-        control={control}
-        name="isPrivate"
-        render={({ field: { onChange, value } }) => (
-          <View style={styles.privateRow}>
-            <Lock size={20} color={value ? colors.accentLight : colors.textDim} strokeWidth={2.2} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.privateLabel}>Private</Text>
-              <Text style={styles.privateDesc}>
-                Hide from friends. They won't see this task or be notified about it.
-              </Text>
+      <Animated.View layout={layout}>
+        <Controller
+          control={control}
+          name="isPrivate"
+          render={({ field: { onChange, value } }) => (
+            <View style={styles.privateRow}>
+              <Lock size={20} color={value ? colors.accentLight : colors.textDim} strokeWidth={2.2} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.privateLabel}>Private</Text>
+                <Text style={styles.privateDesc}>
+                  Hide from friends. They won't see this task or be notified about it.
+                </Text>
+              </View>
+              <Switch
+                disabled={saving}
+                accessibilityLabel="Private task"
+                accessibilityHint="Hides this task from friends and turns off friend notifications for it."
+                value={value}
+                onValueChange={onChange}
+                trackColor={{ false: colors.border, true: colors.accent }}
+              />
             </View>
-            <Switch
-              disabled={saving}
-              accessibilityLabel="Private task"
-              accessibilityHint="Hides this task from friends and turns off friend notifications for it."
-              value={value}
-              onValueChange={onChange}
-              trackColor={{ false: colors.border, true: colors.accent }}
-            />
-          </View>
-        )}
-      />
+          )}
+        />
 
-      <Button
-        title={submitLabel}
-        disabled={createTagMutation.isPending}
-        onPress={handleSubmit(submit)}
-        loading={loading || saving || isSubmitting}
-        style={styles.submitBtn}
-      />
+        <Button
+          title={submitLabel}
+          disabled={createTagMutation.isPending}
+          onPress={handleSubmit(submit)}
+          loading={loading || saving || isSubmitting}
+          style={styles.submitBtn}
+        />
+      </Animated.View>
     </KeyboardAwareScrollView>
   );
 }

@@ -6,10 +6,22 @@ import { AnimatedTabIcon } from '../../components/ui/AnimatedTabIcon';
 import { CommitBadge } from '../../components/ui/CommitBadge';
 import { useTodoReminderSync } from '../../hooks/useTodoReminderSync';
 import { useDynamicAppIcon } from '../../hooks/useDynamicAppIcon';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
+import { gentleDuration, navEaseOut } from '../../constants/motion';
 
 export default function AppLayout() {
   useTodoReminderSync();
   useDynamicAppIcon();
+  const reducedMotion = useReducedMotion();
+  // Detail routes are hidden tabs, which cut by default; a short fade keeps
+  // open/back from teleporting without slowing a tens-per-day path.
+  const detailFade = (duration: number) => ({
+    animation: 'fade' as const,
+    transitionSpec: {
+      animation: 'timing' as const,
+      config: { duration: reducedMotion ? gentleDuration : duration, easing: navEaseOut },
+    },
+  });
   // Edge-to-edge Android draws behind the system navigation bar. Add its
   // inset to the tab bar height/padding so the tab buttons stay tappable.
   const insets = useSafeAreaInsets();
@@ -73,10 +85,10 @@ export default function AppLayout() {
           ),
         }}
       />
-      <Tabs.Screen name="todo/new" options={{ href: null, title: 'New Task' }} />
-      <Tabs.Screen name="todo/[id]" options={{ href: null, title: 'Edit Task' }} />
-      <Tabs.Screen name="todo/friend/[id]" options={{ href: null, title: 'Friend Task' }} />
-      <Tabs.Screen name="body-double/request" options={{ href: null, title: 'Body Double' }} />
+      <Tabs.Screen name="todo/new" options={{ href: null, title: 'New Task', ...detailFade(160) }} />
+      <Tabs.Screen name="todo/[id]" options={{ href: null, title: 'Edit Task', ...detailFade(160) }} />
+      <Tabs.Screen name="todo/friend/[id]" options={{ href: null, title: 'Friend Task', ...detailFade(160) }} />
+      <Tabs.Screen name="body-double/request" options={{ href: null, title: 'Body Double', ...detailFade(200) }} />
     </Tabs>
   );
 }
