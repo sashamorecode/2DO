@@ -18,6 +18,10 @@ on:
 permissions:
   contents: write
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
@@ -62,19 +66,11 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Validate Android release secrets
+      - name: Validate Google Sign-In configuration
         env:
           EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
-          ANDROID_SIGNING_STORE_FILE_B64: ${{ secrets.ANDROID_SIGNING_STORE_FILE_B64 }}
-          ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_STORE_PASSWORD }}
-          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
-          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
         run: |
           test -n "$EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID"
-          test -n "$ANDROID_SIGNING_STORE_FILE_B64"
-          test -n "$ANDROID_SIGNING_STORE_PASSWORD"
-          test -n "$ANDROID_SIGNING_KEY_ALIAS"
-          test -n "$ANDROID_SIGNING_KEY_PASSWORD"
 
       - name: Seed frontend env file
         working-directory: frontend
@@ -122,23 +118,6 @@ jobs:
           env_path.write_text('\n'.join(lines) + '\n')
           PY
 
-      - name: Prepare Android release keystore
-        env:
-          ANDROID_SIGNING_STORE_FILE_B64: ${{ secrets.ANDROID_SIGNING_STORE_FILE_B64 }}
-          ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_STORE_PASSWORD }}
-          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
-          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
-        run: |
-          keystore_path="$RUNNER_TEMP/2do-release.keystore"
-          printf '%s' "$ANDROID_SIGNING_STORE_FILE_B64" | base64 -d > "$keystore_path"
-
-          {
-            echo "ANDROID_SIGNING_STORE_FILE=$keystore_path"
-            echo "ANDROID_SIGNING_STORE_PASSWORD=$ANDROID_SIGNING_STORE_PASSWORD"
-            echo "ANDROID_SIGNING_KEY_ALIAS=$ANDROID_SIGNING_KEY_ALIAS"
-            echo "ANDROID_SIGNING_KEY_PASSWORD=$ANDROID_SIGNING_KEY_PASSWORD"
-          } >> "$GITHUB_ENV"
-
       - name: Write google-services.json
         working-directory: frontend
         env:
@@ -165,13 +144,28 @@ jobs:
           java-version: 17
           cache: gradle
 
-      - name: Build release APK
+      - name: Build and sign release APK
         working-directory: frontend/android
         env:
           EXPO_PUBLIC_COMMIT_HASH: ${{ github.sha }}
+          ANDROID_SIGNING_STORE_FILE_B64: ${{ secrets.ANDROID_SIGNING_STORE_FILE_B64 }}
+          ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_STORE_PASSWORD }}
+          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
+          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
         run: |
+          : "${ANDROID_SIGNING_STORE_FILE_B64:?Missing release keystore}"
+          : "${ANDROID_SIGNING_STORE_PASSWORD:?Missing release keystore password}"
+          : "${ANDROID_SIGNING_KEY_ALIAS:?Missing release key alias}"
+          : "${ANDROID_SIGNING_KEY_PASSWORD:?Missing release key password}"
+
+          export ANDROID_SIGNING_STORE_FILE
+          ANDROID_SIGNING_STORE_FILE="$(mktemp "$RUNNER_TEMP/2do-release.XXXXXXXX")"
+          trap 'rm -f -- "$ANDROID_SIGNING_STORE_FILE"' EXIT
+          printf '%s' "$ANDROID_SIGNING_STORE_FILE_B64" | base64 --decode > "$ANDROID_SIGNING_STORE_FILE"
+          unset ANDROID_SIGNING_STORE_FILE_B64
+
           chmod +x gradlew
-          ./gradlew assembleRelease
+          ./gradlew --no-daemon --no-configuration-cache assembleRelease
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
